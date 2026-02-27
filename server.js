@@ -5,6 +5,8 @@ const path = require('path');
 const crypto = require('crypto');
 
 const app = express();
+const PORT = process.env.PORT || 3050;
+const BASE_URL = `https://sushix-protect-elite.onrender.com`;
 const VAULT_PATH = path.join(__dirname, 'vault');
 const LOGS_PATH = path.join(__dirname, 'logs');
 const REGISTRY_PATH = path.join(__dirname, 'registry.json');
@@ -51,20 +53,10 @@ function logThreat(ip, method, ua) {
     engine.updateTotalThreats();
 }
 
-const BASE_URL = `https://sushix-protect-elite.onrender.com`; // CLOUD DEPLOYED LINK
-
 app.get('/api/analytics', (req, res) => res.json({ ...engine.metrics, uptime: process.uptime(), server_status: "MONITORING" }));
 app.get('/api/threats', (req, res) => res.json(JSON.parse(fs.readFileSync(THREATS_PATH))));
 
 // Whitelist endpoints removed for simplicity
-
-app.get('/api/scripts', (req, res) => {
-    const files = fs.readdirSync(VAULT_PATH);
-    res.json(files.map(f => {
-        const s = fs.statSync(path.join(VAULT_PATH, f));
-        return { name: f, size: s.size, date: s.mtime };
-    }));
-});
 
 app.post('/api/obfuscate', (req, res) => {
     const { script, name } = req.body;
