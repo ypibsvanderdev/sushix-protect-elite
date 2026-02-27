@@ -127,6 +127,13 @@ app.post('/api/obfuscate', authenticate, (req, res) => {
     res.json({ ...data, loader });
 });
 
+app.post('/api/obfuscate/pure', authenticate, (req, res) => {
+    const { script } = req.body;
+    if (!script) return res.status(400).json({ error: "Source required." });
+    const result = obfuscateLua(script);
+    res.json({ success: true, result });
+});
+
 // ==================== VANDER OBFUSCATOR ENGINE ====================
 function obfuscateLua(source) {
     const randVar = () => "_" + crypto.randomBytes(4).toString('hex') + Math.floor(Math.random() * 999);

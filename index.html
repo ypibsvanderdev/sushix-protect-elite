@@ -606,6 +606,7 @@
             <div class="nav-group" style="margin-top: 32px;">
                 <div class="nav-label">Encryption</div>
                 <div class="nav-item" onclick="showPanel('crypt', this)">🛡️ Infinity Crypt</div>
+                <div class="nav-item" onclick="showPanel('obf-pure', this)">☣️ @#$VANDER-OBF^&%</div>
             </div>
 
             <div class="nav-group" style="margin-top: 32px;">
@@ -728,6 +729,37 @@
                     <div style="display: flex; gap: 16px;">
                         <button class="btn" onclick="copyVal('loaderVal')">COPY LOADSTRING</button>
                         <button class="btn btn-outline" onclick="showPanel('explorer')">GO TO VAULT</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PURE @#$% VANDER-OBFUSCATOR ^&* -->
+            <div id="obf-pure" class="panel">
+                <div class="panel-header">
+                    <h2>☣️ @#$%& VANDER-OBFUSCATOR *&^%$</h2>
+                    <p>Elite @#$% bytecode manipulation for private extraction.</p>
+                </div>
+                <div class="grid" style="grid-template-columns: 1fr 1fr;">
+                    <div class="card" style="border-color: var(--vander);">
+                        <h3 style="color:var(--vander)">☣️ @#$% SOURCE ^&*</h3>
+                        <textarea id="pure-input"
+                            style="height: 380px; background: #000; color: #0f0; font-family: 'JetBrains Mono'; border: 1px solid #111;"
+                            placeholder="-- @#$% PASTE RAW LUA HERE ^&*"></textarea>
+                        <button class="btn" style="width: 100%; margin-top: 20px; height: 50px;"
+                            onclick="executePureObf()">
+                            ☣️ EXECUTE @#$% PROTECTION ^&*
+                        </button>
+                    </div>
+
+                    <div class="card" style="border-color: var(--accent);">
+                        <h3 style="color:var(--accent)">☣️ *&^% BYTECODE #$%@</h3>
+                        <textarea id="pure-output" readonly
+                            style="height: 380px; background: #000; color: var(--accent); font-family: 'JetBrains Mono'; border: 1px solid #111;"
+                            placeholder="-- %$#@ PROTECTED OUTPUT *&^%"></textarea>
+                        <button class="btn btn-outline" style="width: 100%; margin-top: 20px;"
+                            onclick="copyVal('pure-output')">
+                            ☣️ COPY @#$% DATA ^&*
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1190,10 +1222,32 @@
                 document.querySelectorAll('.nav-item').forEach(p => p.classList.remove('active'));
                 document.getElementById(id).classList.add('active');
                 if (el) el.classList.add('active');
-                // if (id === 'zat') loadReg(); // Removed as loadReg is deleted
                 if (id === 'dashboard') updateStats();
                 if (id === 'intel') loadThreats();
                 if (id === 'explorer') loadFiles();
+                if (id === 'mailbox') loadMessages();
+                if (id === 'settings') loadHubSettings();
+            }
+
+            async function executePureObf() {
+                const script = document.getElementById('pure-input').value;
+                if (!script) return notify("☣️ @#$% SOURCE REQUIRED ^&*");
+
+                notify("☣️ COMMENCING @#$% PROTECTION ^&*...");
+                try {
+                    const res = await fetch('/api/obfuscate/pure', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ script })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        document.getElementById('pure-output').value = data.result;
+                        notify("☣️ @#$% PROTECTION COMPLETE ^&*");
+                    } else {
+                        notify("☣️ FATAL @#$% ERROR: " + data.error);
+                    }
+                } catch (e) { notify("☣️ RELAY @#$% FAILED ^&*"); }
             }
 
             function notify(m) {
