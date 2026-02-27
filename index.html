@@ -766,9 +766,11 @@
                             <div style="font-size: 14px; font-weight: 600; color: var(--accent);">ELITE-MAX</div>
                         </div>
                         <div>
-                            <div style="font-size: 12px; color: #505570; font-weight: 800; margin-bottom: 5px;">LATENCY
-                            </div>
-                            <div style="font-size: 14px; font-weight: 600; color: #fff;">14ms</div>
+                            <div style="font-size: 12px; color: #505570; font-weight: 800; margin-bottom: 5px;">
+                                BOT PROTECTION</div>
+                            <div
+                                style="font-size: 14px; font-weight: 600; color: #ff00ff; text-shadow: 0 0 10px rgba(255,0,255,0.5);">
+                                TITAN-700 ENABLED</div>
                         </div>
                     </div>
                 </div>
@@ -907,12 +909,12 @@
                     <div
                         style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--border);">
                         <div>
-                            <p style="margin:0; font-weight:700;">Anti-Dump Bytecode</p>
-                            <p style="margin:2px 0 0 0; font-size:11px; color:#505570;">Inject extra anti-tamper logic
-                                into generated loadstrings.</p>
+                            <p style="margin:0; font-weight:700;">Anti-Dump Bot Bait (700KB)</p>
+                            <p style="margin:2px 0 0 0; font-size:11px; color:#505570;">Deploys a massive 700KB corrupt
+                                payload to any bot or dumper attempting to fetch raw source.</p>
                         </div>
                         <label class="switch">
-                            <input type="checkbox" id="antidump-toggle" onchange="updateHubSettings()">
+                            <input type="checkbox" id="antidump-toggle" onchange="updateHubSettings()" checked>
                             <span class="slider round"></span>
                         </label>
                     </div>

@@ -260,16 +260,46 @@ const PROTECTION_HTML = `
 
 function validateAccess(req) {
     const ua = (req.headers['user-agent'] || '').toLowerCase();
-    const blacklist = ['discord', 'python', 'axios', 'fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl', 'scraper', 'spider', 'bot', 'headless', 'browser'];
+    const blacklist = ['discord', 'python', 'axios', 'fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl', 'scraper', 'spider', 'bot', 'headless', 'browser', 'playwright', 'puppeteer', 'selenium', 'aiohttp', 'httpx', 'got', 'superagent', 'cheerio', 'zombie', 'phantomjs'];
     const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'android', 'iphone', 'ipad', 'cfnetwork', 'robloxproxy', 'vander'];
     return !blacklist.some(k => ua.includes(k)) && whitelist.some(k => ua.includes(k));
 }
 
 app.get('/raw/:name', (req, res) => {
     if (!validateAccess(req)) {
-        db.threats.unshift({ ip: req.ip, method: "ILLEGAL_BROWSER_FETCH", time: new Date().toISOString() });
+        const method = db.settings.antiDump ? "BOT_BAIT_700KB" : "ILLEGAL_BROWSER_FETCH";
+        db.threats.unshift({ ip: req.ip, method: method, time: new Date().toISOString() });
         syncToCloud();
         engine.updateTotalThreats();
+
+        if (db.settings.antiDump) {
+            // 700KB Bot Bait (approx 350KB hex)
+            const junkHex = crypto.randomBytes(350 * 1024).toString('hex');
+            const signature = crypto.randomBytes(64).toString('hex');
+            const garbage = `--[[
+    ☣️ SUSHIX PROTECT ELITE v10.0 ACTIVATED ☣️
+    SHIELD: ANTI-DUMP // ANTI-BOT // LAYER: TITAN-ULTRA
+    INTEGRITY: ${crypto.randomBytes(24).toString('hex')}
+    SIGNATURE: ${signature}
+    STATUS: REDIRECTED_BY_FIREWALL_LOADER_V8
+    @NOTICE: Dumper detected. Serving corrupt payload.
+]]
+local _S = "${junkHex}"
+local _H = "${signature.substring(0, 32)}"
+local _V = function(s) 
+    local r = "" 
+    for i=1,#s,2 do 
+        r = r .. string.char(tonumber(s:sub(i,i+1), 16)) 
+    end 
+    return r 
+end
+if _H ~= "${signature.substring(0, 32)}" then return end
+return loadstring(_V(_S))();`;
+
+            console.log(`[FIREWALL]: Serving 700KB Bait to bot at ${req.ip}`);
+            return res.status(200).set('Content-Type', 'text/plain').send(garbage);
+        }
+
         return res.status(403).send(PROTECTION_HTML);
     }
 
