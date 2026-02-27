@@ -77,13 +77,13 @@ app.post('/api/obfuscate', (req, res) => {
 
 app.get('/raw/:name', (req, res) => {
     const ua = req.headers['user-agent'] || "";
-    const isExecutor = ua.includes("Roblox") || ua.includes("Synapse") || ua.includes("Fluxus") || ua.includes("Sentinel") || ua.includes("Electron") || ua.includes("Arceus") || ua.includes("Codex") || ua.includes("Delta") || ua.includes("Hydrogen") || ua.includes("Xeno") || ua.includes("Vander");
+    const isExecutor = ua.includes("Roblox") || ua.includes("Synapse") || ua.includes("Fluxus") || ua.includes("Sentinel") || ua.includes("Electron") || ua.length < 5;
     const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
-    // Safety check bypass: More permissive for troubleshooting
-    if (!isExecutor && !req.query.bypass && !ua.includes("http")) {
-        logThreat(ip, "BROWSER_INTRUSION", ua);
-        return res.status(403).send(`<!DOCTYPE html><html><head><title>SushiX Protection</title><style>body { background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; } .vault { text-align: center; } .shield { font-size: 80px; margin-bottom: 20px; display: block; filter: drop-shadow(0 0 20px #ff4d00); } h1 { font-size: 24px; letter-spacing: 2px; text-transform: uppercase; }</style></head><body><div class="vault"><span class="shield">🛡️</span><h1>SushiX Protector: Access Denied</h1><p>Browser Integrity Violation | Request Logged: ${ip}</p></div></body></html>`);
+    // LUARMOR-LEVEL PERMISSIVE CHECK: Allow if UA exists or payload is requested
+    if (!ua && !req.query.bypass) {
+        logThreat(ip, "SILENT_DROP", "Empty UA");
+        return res.status(204).send(); // Silent drop for empty bots
     }
     const p = path.join(VAULT_PATH, req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua');
     if (fs.existsSync(p)) {
