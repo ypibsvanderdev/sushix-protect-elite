@@ -143,15 +143,22 @@ function obfuscateLua(source) {
         encrypted.push(bytes[i] ^ key);
     }
 
-    let lua = `--[[\n    ☣️ @#$%& SUSHIX-IRON-VM v9.0 ACTIVATED *&^%$ \n    STATUS: ENCRYPTED // LAYER: ELITE\n--]]\n`;
+    let lua = `--[[\n    ☣️ @#$%& SUSHI OBFUSCATOR v10.0 ACTIVATED *&^%$ \n    SHIELD: ANTI-ENV // ANTI-LOG // LAYER: TITAN\n--]]\n`;
+    lua += `local _G = getfenv() or _G; `;
+    lua += `local _P = {print, warn, error, rconsoleprint, rconsolewarn}; `;
+    lua += `for _, _v in pairs(_G) do for _, _p in pairs(_P) do if _v == _p and _v ~= print and _v ~= warn then _G = nil end end end; `;
     lua += `local _k = ${key}; `;
     lua += `local _t = {${encrypted.join(',')}}; `;
     lua += `local _b = bit32 and bit32.bxor or function(a,b) local r,m=0,1 while a>0 or b>0 do if a%2~=b%2 then r=r+m end a,b,m=math.floor(a/2),math.floor(b/2),m*2 end return r end; `;
     lua += `local _r = {}; `;
     lua += `for i=1,#_t do _r[i] = string.char(_b(_t[i], _k)) end; `;
-    lua += `local _f, _e = (loadstring or load)(table.concat(_r)); `;
-    lua += `if _f then _f() else error("[SUSHIX-VM]: @#$%& DECRYPTED PAYLOAD MALFORMED *&^%$ " .. tostring(_e)) end;`;
-
+    lua += `local _L = (loadstring or load); `;
+    lua += `if tostring(_L):find("native") or tostring(_L):find("function") then `;
+    lua += `    local _f, _e = _L(table.concat(_r)); `;
+    lua += `    if _f then _f() else error("[SUSHIX-VM]: @#$%& CORRUPTION DETECTED *&^%$ " .. tostring(_e)) end; `;
+    lua += `else `;
+    lua += `    while true do end; `;
+    lua += `end; `;
     return lua;
 }
 
@@ -245,7 +252,7 @@ const PROTECTION_HTML = `
 <body>
     <div class="container">
         <span class="shield">🛡️</span>
-        <h1>SUSHIX PROTECTOR: ACCESS DENIED</h1>
+        <h1>SUSHI OBFUSCATOR: ACCESS DENIED</h1>
         <p>BROWSER INTEGRITY VIOLATION | UNAUTHORIZED SOURCE REQUEST</p>
     </div>
 </body>
