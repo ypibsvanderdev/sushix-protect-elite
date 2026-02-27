@@ -1,0 +1,7 @@
+node_modules/
+vault/
+logs/
+registry.json
+threats.json
+.DS_Store
+*.log

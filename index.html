@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUSHIX PROTECT ELITE | v8.0 PREMIUM</title>
+    <style>
+        :root {
+            --bg: #0a0b10;
+            --sidebar: #10121a;
+            --surface: #161822;
+            --accent: #ff4d00;
+            --vander: #00f2ff;
+            --text-main: #e1e1e6;
+            --text-dim: #a0a0b0;
+            --border: #252835;
+            --success: #00ff88;
+            --danger: #ff3366;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- SIDEBAR --- */
+        .sidebar {
+            width: 280px;
+            background: var(--sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 24px 0;
+            flex-shrink: 0;
+            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+        }
+
+        .brand {
+            padding: 0 28px 36px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .brand h1 {
+            font-size: 22px;
+            margin: 0;
+            letter-spacing: -1px;
+            color: #fff;
+        }
+
+        .brand span {
+            color: var(--accent);
+        }
+
+        .nav-label {
+            padding: 0 28px 12px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #505570;
+            font-weight: 800;
+        }
+
+        .nav-item {
+            padding: 14px 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            font-size: 14px;
+            color: var(--text-dim);
+            transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border-left: 4px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 77, 0, 0.05);
+            color: #fff;
+        }
+
+        .nav-item.active {
+            background: rgba(255, 77, 0, 0.1);
+            color: #fff;
+            border-left-color: var(--accent);
+            font-weight: 600;
+        }
+
+        .status-footer {
+            margin-top: auto;
+            padding: 24px 28px;
+            border-top: 1px solid var(--border);
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 10px var(--success);
+            margin-right: 10px;
+        }
+
+        /* --- MAIN CONTENT --- */
+        .main {
+            flex: 1;
+            padding: 48px;
+            overflow-y: auto;
+            background-image: radial-gradient(circle at 100% 0%, rgba(255, 77, 0, 0.05), transparent 40%);
+        }
+
+        .panel {
+            display: none;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .panel.active {
+            display: block;
+            animation: panelFade 0.4s ease;
+        }
+
+        @keyframes panelFade {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .panel-header {
+            margin-bottom: 40px;
+        }
+
+        .panel-header h2 {
+            font-size: 32px;
+            margin: 0 0 8px;
+            color: #fff;
+            letter-spacing: -1px;
+        }
+
+        .panel-header p {
+            margin: 0;
+            color: var(--text-dim);
+            font-size: 16px;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 32px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        /* --- UI ELEMENTS --- */
+        .stat-card {
+            background: linear-gradient(135deg, #1a1c2a, #161822);
+            padding: 24px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            text-align: left;
+        }
+
+        .stat-card .label {
+            font-size: 12px;
+            font-weight: 700;
+            color: #606580;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .stat-card .value {
+            font-size: 36px;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .stat-card .trend {
+            color: var(--success);
+            font-size: 12px;
+            margin-top: 8px;
+            font-weight: 600;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-dim);
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            background: #0d0f17;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: #fff;
+            padding: 14px 18px;
+            box-sizing: border-box;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 14px;
+            margin-bottom: 24px;
+            outline: none;
+            transition: 0.2s;
+        }
+
+        input:focus,
+        textarea:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(255, 77, 0, 0.1);
+        }
+
+        textarea {
+            height: 350px;
+            resize: vertical;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn:hover {
+            background: #ff6a26;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(255, 77, 0, 0.3);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: #fff;
+        }
+
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: #fff;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+        }
+
+        .btn-danger:hover {
+            background: #ff4d79;
+            box-shadow: 0 8px 16px rgba(255, 51, 102, 0.3);
+        }
+
+        /* --- REPOSITORY LIST --- */
+        .list-header {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 100px;
+            padding: 16px 24px;
+            background: #10121a;
+            border-radius: 8px 8px 0 0;
+            font-size: 12px;
+            font-weight: 700;
+            color: #606580;
+            text-transform: uppercase;
+        }
+
+        .item-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 100px;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            align-items: center;
+            font-size: 14px;
+            transition: 0.2s;
+            cursor: pointer;
+        }
+
+        .item-row:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .name-col {
+            color: var(--vander);
+            font-weight: 600;
+        }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .badge-success {
+            background: rgba(0, 255, 136, 0.1);
+            color: var(--success);
+        }
+
+        .badge-danger {
+            background: rgba(255, 51, 102, 0.1);
+            color: var(--danger);
+        }
+
+        #toast {
+            position: fixed;
+            bottom: 32px;
+            right: 32px;
+            background: var(--surface);
+            border: 1px solid var(--accent);
+            padding: 16px 24px;
+            border-radius: 8px;
+            display: none;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            animation: toastIn 0.3s ease;
+        }
+
+        @keyframes toastIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <aside class="sidebar">
+        <div class="brand">
+            <img src="logo.png" alt="SushiX Logo"
+                style="width: 42px; height: 42px; border-radius: 8px; border: 1px solid var(--accent); box-shadow: 0 0 15px rgba(255, 77, 0, 0.3);">
+            <h1>SUSHI<span>X</span></h1>
+        </div>
+
+        <div class="nav-group">
+            <div class="nav-label">Overview</div>
+            <div class="nav-item active" onclick="showPanel('dashboard', this)">📊 System Analytics</div>
+            <div class="nav-item" onclick="showPanel('explorer', this)">📁 Script Repository</div>
+        </div>
+
+        <div class="nav-group" style="margin-top: 32px;">
+            <div class="nav-label">Encryption</div>
+            <div class="nav-item" onclick="showPanel('crypt', this)">🛡️ Infinity Crypt</div>
+        </div>
+
+        <div class="nav-group" style="margin-top: 32px;">
+            <div class="nav-label">Security</div>
+            <div class="nav-item" onclick="showPanel('intel', this)">🕵️ Threat Intel</div>
+            <div class="nav-item" onclick="showPanel('history', this)">📜 Action Logs</div>
+            <div class="nav-item" onclick="showPanel('settings', this)">⚙️ Global Settings</div>
+        </div>
+
+        <div class="status-footer">
+            <div style="font-size: 12px; color: #606580; display: flex; align-items: center;">
+                <span class="pulse-dot"></span>
+                ELITE PROTECTION ACTIVE
+            </div>
+            <div style="font-size: 10px; color: #404560; margin-top: 8px; font-weight: 600;">v8.0.2 - Premium Build
+            </div>
+        </div>
+    </aside>
+
+    <main class="main">
+        <!-- DASHBOARD -->
+        <div id="dashboard" class="panel active">
+            <div class="panel-header">
+                <h2>Elite Dashboard</h2>
+                <p>Real-time telemetry from the SushiX protection network.</p>
+            </div>
+
+            <div class="grid">
+                <div class="stat-card">
+                    <div class="label">Total Managed Assets</div>
+                    <div class="value" id="stat-assets">--</div>
+                    <div class="trend">+12% from last week</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Neutralized Threats</div>
+                    <div class="value" id="stat-threats" style="color: var(--danger)">--</div>
+                    <div class="trend" style="color: var(--danger)">High Activity Level</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Active Users</div>
+                    <div class="value" id="stat-users">--</div>
+                    <div class="trend">Global Coverage</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-top:0">System Status</h3>
+                <div style="display: flex; gap: 40px; margin-top: 20px;">
+                    <div>
+                        <div style="font-size: 12px; color: #505570; font-weight: 800; margin-bottom: 5px;">SERVER NODE
+                        </div>
+                        <div style="font-size: 14px; font-weight: 600; color: var(--success);">ACTIVE</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; color: #505570; font-weight: 800; margin-bottom: 5px;">PROTECTION
+                            TIER</div>
+                        <div style="font-size: 14px; font-weight: 600; color: var(--accent);">ELITE-MAX</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; color: #505570; font-weight: 800; margin-bottom: 5px;">LATENCY
+                        </div>
+                        <div style="font-size: 14px; font-weight: 600; color: #fff;">14ms</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- REPOSITORY -->
+        <div id="explorer" class="panel">
+            <div class="panel-header">
+                <h2>Script Repository</h2>
+                <p>Manage and distribute your hosted loadstrings.</p>
+            </div>
+            <div class="card" style="padding: 0; overflow: hidden;">
+                <div class="list-header">
+                    <span>File Name</span>
+                    <span>Created At</span>
+                    <span>File Size</span>
+                    <span>Status</span>
+                </div>
+                <div id="file-list">
+                    <!-- Files injected -->
+                </div>
+            </div>
+        </div>
+
+        <!-- INFINITY CRYPT -->
+        <div id="crypt" class="panel">
+            <div class="panel-header">
+                <h2>Infinity Crypt</h2>
+                <p>Enterprise-grade script obfuscation and hosting.</p>
+            </div>
+            <div class="card">
+                <label>Script Designation (Permanent Link ID)</label>
+                <input type="text" id="scriptName" placeholder="e.g. zenith_v8_launcher">
+
+                <label>Lua Source (Source will be encrypted)</label>
+                <textarea id="scriptSource" placeholder="-- Paste Lua code here..."></textarea>
+
+                <button class="btn" onclick="obfuscate()">
+                    PROTECT & DEPLOY ASSET
+                </button>
+            </div>
+
+            <div class="card" id="resultCard" style="display:none; border-color: var(--accent);">
+                <h3 style="margin-top:0; color:var(--accent)">Vault Creation Successful</h3>
+                <label>Public Loadstring Loader:</label>
+                <input type="text" id="loaderVal" readonly style="color: var(--vander); font-weight: 700;">
+                <div style="display: flex; gap: 16px;">
+                    <button class="btn" onclick="copyVal('loaderVal')">COPY LOADSTRING</button>
+                    <button class="btn btn-outline" onclick="showPanel('explorer')">GO TO VAULT</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- INTEL -->
+        <div id="intel" class="panel">
+            <div class="panel-header">
+                <h2>Threat Intelligence</h2>
+                <p>Network security logs and blocked intrusion attempts.</p>
+            </div>
+            <div class="card" style="padding: 0; overflow: hidden;">
+                <div id="threat-logs">
+                    <!-- Threats injected -->
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-top:0">Environment Status</h3>
+                <div style="font-family: monospace; font-size: 13px; color: #505570; line-height: 2;">
+                    [INFO] Heartbeat Monitor initialized...<br>
+                    <span style="color: var(--success)">[OK] Encryption node SX-8.2 sync complete.</span><br>
+                    [INFO] Scanning for memory dumpers...<br>
+                    [INFO] Registry hash verified.
+                </div>
+            </div>
+        </div>
+
+        <!-- FILE VIEWER -->
+        <div id="viewer" class="panel">
+            <div class="panel-header">
+                <h2 id="view-title">Asset View</h2>
+                <p id="view-meta">Metadata details for the selected script.</p>
+            </div>
+            <div class="card">
+                <label>Gateway Distributor (Loadstring):</label>
+                <input type="text" id="view-loader" readonly style="color: var(--vander);">
+                <label>Encrypted Bytecode Preview:</label>
+                <textarea id="view-content" readonly style="height: 200px; color: #404560; font-size: 11px;"></textarea>
+
+                <div style="display: flex; gap: 16px;">
+                    <button class="btn" onclick="copyVal('view-loader')">COPY LOADER</button>
+                    <button class="btn btn-danger" onclick="deleteCur()">PERMANENT DELETE</button>
+                    <button class="btn btn-outline" onclick="showPanel('explorer')">BACK</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MOCK PANELS -->
+        <div id="history" class="panel">
+            <h2>Action Logs</h2>
+            <p>Feature coming in the next security patch.</p>
+        </div>
+        <div id="settings" class="panel">
+            <h2>Global Config</h2>
+            <p>Server-side parameters are locked to ELITE-OPTIMAL.</p>
+        </div>
+    </main>
+
+    <div id="toast">Notification text</div>
+
+    <script>
+        let currentFile = "";
+
+        async function updateStats() {
+            try {
+                const res = await fetch('/api/analytics');
+                const data = await res.json();
+                document.getElementById('stat-assets').innerText = data.total_crypts;
+                document.getElementById('stat-threats').innerText = data.threats_neutralized.toLocaleString();
+                document.getElementById('stat-users').innerText = data.active_users;
+            } catch (e) { }
+        }
+
+        async function loadFiles() {
+            const res = await fetch('/api/scripts');
+            const files = await res.json();
+            const list = document.getElementById('file-list');
+            list.innerHTML = "";
+
+            if (files.length === 0) {
+                list.innerHTML = `<div style="padding:48px; text-align:center; color:#505570;">No assets found in vault.</div>`;
+                return;
+            }
+
+            files.forEach(f => {
+                const date = new Date(f.date).toLocaleDateString();
+                const size = (f.size / 1024).toFixed(1) + " KB";
+                list.innerHTML += `
+                    <div class="item-row" onclick="view('${f.name}')">
+                        <div class="name-col">${f.name}</div>
+                        <div>${date}</div>
+                        <div>${size}</div>
+                        <div><span class="badge badge-success">HOSTED</span></div>
+                    </div>
+                `;
+            });
+        }
+
+        async function view(name) {
+            currentFile = name;
+            const res = await fetch('/api/scripts/' + name);
+            const data = await res.json();
+            document.getElementById('view-title').innerText = name;
+            document.getElementById('view-loader').value = `loadstring(game:HttpGet("http://localhost:3050/raw/${name}"))()`;
+            document.getElementById('view-content').value = data.content;
+            showPanel('viewer');
+        }
+
+        async function obfuscate() {
+            const name = document.getElementById('scriptName').value;
+            const script = document.getElementById('scriptSource').value;
+            if (!name || !script) return notify("All fields are required.");
+
+            const obfBtn = document.querySelector('.btn');
+            obfBtn.innerText = "DEPLOYING NANOBOTS...";
+            obfBtn.disabled = true;
+
+            try {
+                const res = await fetch('/api/obfuscate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, script })
+                });
+                const data = await res.json();
+                document.getElementById('loaderVal').value = data.loader;
+                document.getElementById('resultCard').style.display = 'block';
+                notify("Asset secured and hosted in vault.");
+                loadFiles();
+                updateStats();
+            } catch (e) {
+                notify("Encryption relay failed.");
+            } finally {
+                obfBtn.innerText = "PROTECT & DEPLOY ASSET";
+                obfBtn.disabled = false;
+            }
+        }
+
+        async function reg(type) {
+            const id = document.getElementById('regId').value;
+            if (!id) return;
+            await fetch('/api/whitelist/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, type })
+            });
+            notify(`Authority updated for: ${id}`);
+            loadReg();
+            document.getElementById('regId').value = "";
+        }
+
+        async function getAvatar(name) {
+            try {
+                const uRes = await fetch('https://users.roblox.com/v1/usernames/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ usernames: [name], excludeBannedUsers: false })
+                });
+                const uData = await uRes.json();
+                if (!uData.data || uData.data.length === 0) return 'https://tr.rbxcdn.com/30DAY-AvatarHeadshot-Png-48x48-6/48/48/AvatarHeadshot/Png/isCircular';
+                const userId = uData.data[0].id;
+                const tRes = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=48x48&format=Png&isCircular=true`);
+                const tData = await tRes.json();
+                return tData.data[0].imageUrl;
+            } catch (e) {
+                return 'https://tr.rbxcdn.com/30DAY-AvatarHeadshot-Png-48x48-6/48/48/AvatarHeadshot/Png/isCircular';
+            }
+        }
+
+        async function loadThreats() {
+            try {
+                const res = await fetch('/api/threats');
+                const threats = await res.json();
+                const container = document.getElementById('threat-logs');
+
+                if (threats.length === 0) {
+                    container.innerHTML = `<p style="padding:20px; color:#505570; text-align:center;">No active threats detected in this session.</p>`;
+                    return;
+                }
+
+                let html = `<table style="width:100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="text-align:left; font-size:11px; color:#505570; text-transform:uppercase;">
+                            <th style="padding:15px;">SOURCE IP</th>
+                            <th style="padding:15px;">METHOD</th>
+                            <th style="padding:15px;">TIMESTAMP</th>
+                            <th style="padding:15px; text-align:right;">ACTION</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+                threats.forEach(t => {
+                    const time = new Date(t.time).toLocaleTimeString();
+                    html += `<tr style="border-top:1px solid var(--border); font-size:13px;">
+                        <td style="padding:15px; color:var(--danger); font-weight:700;">${t.ip}</td>
+                        <td style="padding:15px;"><span class="badge badge-danger">${t.method}</span></td>
+                        <td style="padding:15px; color:var(--text-dim);">${time}</td>
+                        <td style="padding:15px; text-align:right;">
+                            <button onclick="quickBlacklist('${t.ip}')" class="btn btn-danger" style="padding:8px 12px; font-size:10px;">BAN ADDR</button>
+                        </td>
+                    </tr>`;
+                });
+
+                html += `</tbody></table>`;
+                container.innerHTML = html;
+            } catch (e) { }
+        }
+
+        async function quickBlacklist(ip) {
+            await fetch('/api/whitelist/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: ip, type: 'blacklist' })
+            });
+            notify("IP Address Blacklisted: " + ip);
+            // loadReg(); // Removed as loadReg is deleted
+        }
+
+        // Removed async function loadReg() { ... }
+
+        // Removed async function regChange(id, newType) { ... }
+
+        // Removed async function removeReg(id, type, script) { ... }
+
+        async function deleteCur() {
+            if (!confirm("Are you sure you want to permanently shred this asset?")) return;
+            await fetch('/api/scripts/' + currentFile, { method: 'DELETE' });
+            notify("File purged from encrypted vault.");
+            showPanel('explorer');
+            loadFiles();
+            updateStats();
+        }
+
+        function showPanel(id, el) {
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(p => p.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            if (el) el.classList.add('active');
+            // if (id === 'zat') loadReg(); // Removed as loadReg is deleted
+            if (id === 'dashboard') updateStats();
+            if (id === 'intel') loadThreats();
+            if (id === 'explorer') loadFiles();
+        }
+
+        function notify(m) {
+            const t = document.getElementById('toast');
+            t.innerText = m;
+            t.style.display = 'block';
+            setTimeout(() => t.style.display = 'none', 3000);
+        }
+
+        function copyVal(id) {
+            const c = document.getElementById(id);
+            c.select();
+            document.execCommand('copy');
+            notify("Gateway Distributor link copied.");
+        }
+
+        window.onload = () => {
+            loadFiles();
+            updateStats();
+            setInterval(updateStats, 15000);
+        };
+    </script>
+</body>
+
+</html>
