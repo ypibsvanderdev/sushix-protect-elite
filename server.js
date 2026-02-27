@@ -76,6 +76,20 @@ app.post('/api/obfuscate', (req, res) => {
 });
 
 app.get('/raw/:name', (req, res) => {
+    const ua = (req.headers['user-agent'] || '').toLowerCase();
+
+    // VANDER HUB PRODUCTION PROTECTION MODEL
+    const blacklist = ['discord', 'python', 'axios', 'fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl', 'scraper', 'spider', 'bot', 'headless'];
+    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'android', 'iphone', 'ipad', 'cfnetwork', 'robloxproxy'];
+
+    const isBlacklisted = blacklist.some(k => ua.includes(k));
+    const isWhitelisted = whitelist.some(k => ua.includes(k));
+
+    // PROTECTION TRIGGER
+    if (isBlacklisted || !isWhitelisted) {
+        return res.status(403).send('-- [VANDER-HUB]: UNTRUSTED ENVIRONMENT. ACCESS REVOKED.');
+    }
+
     const fileName = req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua';
     const p = path.join(VAULT_PATH, fileName);
 
