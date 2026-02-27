@@ -136,15 +136,22 @@ app.post('/api/obfuscate/pure', authenticate, (req, res) => {
 
 // ==================== VANDER OBFUSCATOR ENGINE ====================
 function obfuscateLua(source) {
-    const randVar = () => "_" + crypto.randomBytes(4).toString('hex') + Math.floor(Math.random() * 999);
-    const key = Math.floor(Math.random() * 200) + 50;
+    const key = Math.floor(Math.random() * 255) + 1;
+    const bytes = Buffer.from(source, 'utf8');
     const encrypted = [];
-    for (let i = 0; i < source.length; i++) encrypted.push(source.charCodeAt(i) ^ key);
+    for (let i = 0; i < bytes.length; i++) {
+        encrypted.push(bytes[i] ^ key);
+    }
 
-    let lua = `-- SECURED BY SUSHIX ELITE v8.5\n`;
-    lua += `local _k=${key} local _t={${encrypted.join(',')}} local _r={} `;
-    lua += `local _x=function(a,b) local r,m=0,1 while a>0 or b>0 do if a%2~=b%2 then r=r+m end a,b,m=math.floor(a/2),math.floor(b/2),m*2 end return r end `;
-    lua += `for i=1,#_t do _r[i]=string.char(_x(_t[i],_k)) end (loadstring or load)(table.concat(_r))()`;
+    let lua = `--[[\n    ☣️ @#$%& SUSHIX-IRON-VM v9.0 ACTIVATED *&^%$ \n    STATUS: ENCRYPTED // LAYER: ELITE\n--]]\n`;
+    lua += `local _k = ${key}; `;
+    lua += `local _t = {${encrypted.join(',')}}; `;
+    lua += `local _b = bit32 and bit32.bxor or function(a,b) local r,m=0,1 while a>0 or b>0 do if a%2~=b%2 then r=r+m end a,b,m=math.floor(a/2),math.floor(b/2),m*2 end return r end; `;
+    lua += `local _r = {}; `;
+    lua += `for i=1,#_t do _r[i] = string.char(_b(_t[i], _k)) end; `;
+    lua += `local _f, _e = (loadstring or load)(table.concat(_r)); `;
+    lua += `if _f then _f() else error("[SUSHIX-VM]: @#$%& DECRYPTED PAYLOAD MALFORMED *&^%$ " .. tostring(_e)) end;`;
+
     return lua;
 }
 
