@@ -1,6 +1,6 @@
-# 🛡️ SushiX Protect Elite v8.5
-
 **SushiX Protect Elite** is a high-performance, enterprise-grade script hosting and protection hub designed for the modern Roblox development ecosystem.
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ypibsvanderdev/sushix-protect-elite)
 
 ## 🚀 Features
 
