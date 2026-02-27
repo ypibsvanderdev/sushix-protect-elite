@@ -98,9 +98,26 @@ app.delete('/api/scripts/:name', (req, res) => {
     else res.status(404).json({ error: "File not found" });
 });
 
+app.post('/api/obfuscate', (req, res) => {
+    const { script, name } = req.body;
+    const data = engine.protect(script, name);
+    const fileName = name.endsWith('.lua') ? name : name + '.lua';
+    const loader = `loadstring(game:HttpGet("${BASE_URL}/raw/${fileName}"))()`;
+    res.json({ ...data, loader });
+});
+
+app.get('/api/scripts', (req, res) => {
+    try {
+        const files = fs.readdirSync(VAULT_PATH).filter(f => f.endsWith('.lua'));
+        res.json({ success: true, scripts: files });
+    } catch (e) {
+        res.json({ success: false, scripts: [] });
+    }
+});
+
 app.get('/api/scripts/:name', (req, res) => {
-    const p = path.join(VAULT_PATH, req.params.name);
-    if (fs.existsSync(p)) res.json({ content: fs.readFileSync(p, 'utf8') });
+    const p = path.join(VAULT_PATH, req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua');
+    if (fs.existsSync(p)) res.json({ success: true, content: fs.readFileSync(p, 'utf8') });
     else res.status(404).json({ error: "Script not found" });
 });
 
