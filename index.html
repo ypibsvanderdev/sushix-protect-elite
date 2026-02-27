@@ -589,7 +589,8 @@
             const res = await fetch('/api/scripts/' + name);
             const data = await res.json();
             document.getElementById('view-title').innerText = name;
-            document.getElementById('view-loader').value = `loadstring(game:HttpGet("http://localhost:3050/raw/${name}"))()`;
+            // Updated to use production domain link
+            document.getElementById('view-loader').value = `loadstring(game:HttpGet("https://sushix-protect-elite.onrender.com/raw/${name}"))()`;
             document.getElementById('view-content').value = data.content;
             showPanel('viewer');
         }
