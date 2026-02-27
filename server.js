@@ -76,20 +76,15 @@ app.post('/api/obfuscate', (req, res) => {
 });
 
 app.get('/raw/:name', (req, res) => {
-    const ua = req.headers['user-agent'] || "";
-    const isExecutor = ua.includes("Roblox") || ua.includes("Synapse") || ua.includes("Fluxus") || ua.includes("Sentinel") || ua.includes("Electron") || ua.length < 5;
-    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const fileName = req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua';
+    const p = path.join(VAULT_PATH, fileName);
 
-    // LUARMOR-LEVEL PERMISSIVE CHECK: Allow if UA exists or payload is requested
-    if (!ua && !req.query.bypass) {
-        logThreat(ip, "SILENT_DROP", "Empty UA");
-        return res.status(204).send(); // Silent drop for empty bots
-    }
-    const p = path.join(VAULT_PATH, req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua');
     if (fs.existsSync(p)) {
         res.setHeader('Content-Type', 'text/plain');
         res.send(fs.readFileSync(p, 'utf8'));
-    } else res.status(404).send("-- SUSHIX: Script not found.");
+    } else {
+        res.status(404).send("-- SUSHIX: Asset not found in vault.");
+    }
 });
 
 app.delete('/api/scripts/:name', (req, res) => {
