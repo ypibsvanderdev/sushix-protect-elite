@@ -3,6 +3,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const axios = require('axios');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
@@ -11,21 +12,49 @@ const bcrypt = require('bcrypt');
 const app = express();
 const PORT = process.env.PORT || 3050;
 const BASE_URL = `https://sushix-protect-elite.onrender.com`;
-const VAULT_PATH = path.join(__dirname, 'vault');
-const LOGS_PATH = path.join(__dirname, 'logs');
-const REGISTRY_PATH = path.join(__dirname, 'registry.json');
-const THREATS_PATH = path.join(__dirname, 'threats.json');
-const USERS_PATH = path.join(__dirname, 'users.json');
+const FIREBASE_URL = 'https://vanderhub-default-rtdb.firebaseio.com/sushix_hub.json';
+
+// --- CLOUD SYNC ENGINE ---
+const db = {
+    vault: {},
+    users: [],
+    registry: { whitelist: [], blacklist: [] },
+    threats: []
+};
+
+async function syncToCloud() {
+    try {
+        await axios.put(FIREBASE_URL, db);
+        console.log("[CLOUD]: Data persisted to Firebase.");
+    } catch (e) {
+        console.error("[CLOUD]: Sync failed:", e.message);
+    }
+}
+
+async function loadFromCloud() {
+    try {
+        const res = await axios.get(FIREBASE_URL);
+        if (res.data) {
+            db.vault = res.data.vault || {};
+            db.users = res.data.users || [];
+            db.registry = res.data.registry || { whitelist: [], blacklist: [] };
+            db.threats = res.data.threats || [];
+            console.log("[CLOUD]: Database loaded successfully.");
+        } else {
+            console.log("[CLOUD]: Initializing empty database...");
+            await syncToCloud();
+        }
+    } catch (e) {
+        console.error("[CLOUD]: Load failed:", e.message);
+    }
+}
+
+// Initial Load
+loadFromCloud();
 
 const JWT_SECRET = 'VANDER-HUB-ULTRA-SECRET-777';
 const GOOGLE_CLIENT_ID = '945575151017-o0mh8usjvn9r23lnid2th5g13qg8lpgv.apps.googleusercontent.com';
 const gClient = new OAuth2Client(GOOGLE_CLIENT_ID);
-
-if (!fs.existsSync(VAULT_PATH)) fs.mkdirSync(VAULT_PATH);
-if (!fs.existsSync(LOGS_PATH)) fs.mkdirSync(LOGS_PATH);
-if (!fs.existsSync(REGISTRY_PATH)) fs.writeFileSync(REGISTRY_PATH, JSON.stringify({ whitelist: [], blacklist: [] }));
-if (!fs.existsSync(THREATS_PATH)) fs.writeFileSync(THREATS_PATH, JSON.stringify([]));
-if (!fs.existsSync(USERS_PATH)) fs.writeFileSync(USERS_PATH, JSON.stringify([]));
 
 app.use(cors());
 app.use(express.json());
@@ -49,36 +78,28 @@ const authenticate = (req, res, next) => {
 class SushiXEliteEngine {
     constructor() {
         this.metrics = { total_crypts: 0, threats_neutralized: 0, active_users: 82 };
-        this.updateTotalThreats();
+        setTimeout(() => this.updateTotalThreats(), 5000);
     }
     updateTotalThreats() {
-        const threats = JSON.parse(fs.readFileSync(THREATS_PATH));
-        this.metrics.threats_neutralized = threats.length;
+        this.metrics.threats_neutralized = db.threats.length;
     }
     randomStr(l) { return crypto.randomBytes(l).toString('hex').substring(0, l); }
     protect(source, name, options = {}) {
         const scriptId = "SX_ELITE_" + this.randomStr(12).toUpperCase();
         const scriptName = name.endsWith('.lua') ? name : name + '.lua';
 
-        // Obfuscation deactivated: Serving Raw Source
-        const fullScript = `--[[ SUSHIX HOSTING: RAW ASSET [${scriptName}] ]]\n${source}`;
+        // Save to Cloud Vault
+        db.vault[scriptName.replace(/\./g, '_dot_')] = source;
+        syncToCloud();
 
-        fs.writeFileSync(path.join(VAULT_PATH, scriptName), fullScript);
         this.metrics.total_crypts++;
-        return { success: true, id: scriptId, result: fullScript, path: `/vault/${name}`, size: fullScript.length };
+        return { success: true, id: scriptId, size: source.length };
     }
 }
 const engine = new SushiXEliteEngine();
 
-function logThreat(ip, method, ua) {
-    const threats = JSON.parse(fs.readFileSync(THREATS_PATH));
-    threats.unshift({ ip, method, ua, time: new Date().toISOString() });
-    fs.writeFileSync(THREATS_PATH, JSON.stringify(threats.slice(0, 50), null, 4));
-    engine.updateTotalThreats();
-}
-
 app.get('/api/analytics', authenticate, (req, res) => res.json({ ...engine.metrics, uptime: process.uptime(), server_status: "MONITORING" }));
-app.get('/api/threats', authenticate, (req, res) => res.json(JSON.parse(fs.readFileSync(THREATS_PATH))));
+app.get('/api/threats', authenticate, (req, res) => res.json(db.threats));
 
 // Whitelist endpoints removed for simplicity
 
@@ -114,9 +135,12 @@ app.post('/api/obfuscate', (req, res) => {
 });
 
 app.delete('/api/scripts/:name', authenticate, (req, res) => {
-    const p = path.join(VAULT_PATH, req.params.name);
-    if (fs.existsSync(p)) { fs.unlinkSync(p); res.json({ success: true }); }
-    else res.status(404).json({ error: "File not found" });
+    const fileName = req.params.name.replace(/\./g, '_dot_');
+    if (db.vault[fileName]) {
+        delete db.vault[fileName];
+        syncToCloud();
+        res.json({ success: true });
+    } else res.status(404).json({ error: "File not found" });
 });
 
 const PROTECTION_HTML = `
@@ -150,14 +174,18 @@ function validateAccess(req) {
 }
 
 app.get('/raw/:name', (req, res) => {
-    if (!validateAccess(req)) return res.status(403).send(PROTECTION_HTML);
+    if (!validateAccess(req)) {
+        db.threats.unshift({ ip: req.ip, method: "ILLEGAL_BROWSER_FETCH", time: new Date().toISOString() });
+        syncToCloud();
+        engine.updateTotalThreats();
+        return res.status(403).send(PROTECTION_HTML);
+    }
 
-    const fileName = req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua';
-    const p = path.join(VAULT_PATH, fileName);
+    const fileName = (req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua').replace(/\./g, '_dot_');
+    const source = db.vault[fileName];
 
-    if (fs.existsSync(p)) {
+    if (source) {
         res.setHeader('Content-Type', 'text/plain');
-        const source = fs.readFileSync(p, 'utf8');
         res.send(obfuscateLua(source));
     } else res.status(404).send("-- SUSHIX: Asset not found.");
 });
@@ -165,20 +193,17 @@ app.get('/raw/:name', (req, res) => {
 app.get('/api/scripts', authenticate, (req, res) => {
     if (!validateAccess(req) && !req.headers.referer) return res.status(403).send(PROTECTION_HTML);
     try {
-        const files = fs.readdirSync(VAULT_PATH).filter(f => f.endsWith('.lua'));
-        res.json({
-            success: true, scripts: files.map(name => {
-                const stats = fs.statSync(path.join(VAULT_PATH, name));
-                return { name, size: stats.size, date: stats.mtime };
-            })
+        const scripts = Object.keys(db.vault).map(key => {
+            return { name: key.replace(/_dot_/g, '.'), size: db.vault[key].length, date: new Date() };
         });
+        res.json({ success: true, scripts });
     } catch (e) { res.json({ success: false, scripts: [] }); }
 });
 
 app.get('/api/scripts/:name', authenticate, (req, res) => {
-    if (!validateAccess(req) && !req.headers.referer) return res.status(403).send(PROTECTION_HTML);
-    const p = path.join(VAULT_PATH, req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua');
-    if (fs.existsSync(p)) res.json({ success: true, content: fs.readFileSync(p, 'utf8') });
+    const fileName = (req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua').replace(/\./g, '_dot_');
+    const source = db.vault[fileName];
+    if (source) res.json({ success: true, content: source });
     else res.status(404).json({ error: "Script not found" });
 });
 
@@ -187,8 +212,7 @@ app.post('/api/auth/register', async (req, res) => {
     const { email, password, name } = req.body;
     if (!email || !password) return res.status(400).json({ error: "Email and password required." });
 
-    const users = JSON.parse(fs.readFileSync(USERS_PATH));
-    if (users.find(u => u.email === email)) return res.status(400).json({ error: "EMAIL ALREADY REGISTERED" });
+    if (db.users.find(u => u.email === email)) return res.status(400).json({ error: "EMAIL ALREADY REGISTERED" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = {
@@ -200,8 +224,8 @@ app.post('/api/auth/register', async (req, res) => {
         createdAt: new Date().toISOString()
     };
 
-    users.push(newUser);
-    fs.writeFileSync(USERS_PATH, JSON.stringify(users, null, 4));
+    db.users.push(newUser);
+    syncToCloud();
 
     console.log(`[USER REGISTERED]: ${email}`);
     res.json({ success: true, message: "Account created successfully." });
@@ -209,8 +233,7 @@ app.post('/api/auth/register', async (req, res) => {
 
 app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
-    const users = JSON.parse(fs.readFileSync(USERS_PATH));
-    const user = users.find(u => u.email === email);
+    const user = db.users.find(u => u.email === email);
 
     if (!user || user.type === 'google') return res.status(401).json({ error: "INVALID CREDENTIALS" });
 
@@ -234,13 +257,11 @@ app.post('/api/auth/google', async (req, res) => {
         const payload = ticket.getPayload();
         const { email, name, picture, sub: googleId } = payload;
 
-        // --- SIGN UP / SIGN IN PERSISTENCE ---
-        const users = JSON.parse(fs.readFileSync(USERS_PATH));
-        let user = users.find(u => u.email === email);
+        let user = db.users.find(u => u.email === email);
         if (!user) {
-            user = { id: googleId, email, name, picture, createdAt: new Date().toISOString() };
-            users.push(user);
-            fs.writeFileSync(USERS_PATH, JSON.stringify(users, null, 4));
+            user = { id: googleId, email, name, picture, type: 'google', createdAt: new Date().toISOString() };
+            db.users.push(user);
+            syncToCloud();
             console.log(`[USER SIGNUP]: ${email}`);
         } else {
             console.log(`[USER LOGIN]: ${email}`);
@@ -261,8 +282,7 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 app.get('/api/auth/me', authenticate, (req, res) => {
-    const users = JSON.parse(fs.readFileSync(USERS_PATH));
-    const user = users.find(u => u.id === req.user.id);
+    const user = db.users.find(u => u.id === req.user.id);
     res.json({ success: true, user });
 });
 
