@@ -12,7 +12,7 @@ const bcrypt = require('bcrypt');
 const app = express();
 const PORT = process.env.PORT || 3050;
 const BASE_URL = `https://sushix-protect-elite.onrender.com`;
-const FIREBASE_URL = 'https://vanderhub-default-rtdb.firebaseio.com/sushix_hub.json';
+const FIREBASE_URL = 'https://vanderhub-default-rtdb.firebase.com/sushix_hub.json';
 
 // --- CLOUD SYNC ENGINE ---
 const db = {
@@ -20,7 +20,13 @@ const db = {
     users: [],
     registry: { whitelist: [], blacklist: [] },
     threats: [],
-    messages: [] // New: DM System
+    messages: [],
+    settings: {
+        globalKillSwitch: false,
+        antiDump: true,
+        autoBlacklist: true,
+        privacyMode: false
+    }
 };
 
 async function syncToCloud() {
@@ -41,6 +47,7 @@ async function loadFromCloud() {
             db.registry = res.data.registry || { whitelist: [], blacklist: [] };
             db.threats = res.data.threats || [];
             db.messages = res.data.messages || [];
+            db.settings = res.data.settings || { globalKillSwitch: false, antiDump: true, autoBlacklist: true, privacyMode: false };
             console.log("[CLOUD]: Database loaded successfully.");
         } else {
             console.log("[CLOUD]: Initializing empty database...");
@@ -159,8 +166,8 @@ app.delete('/api/scripts/:name', authenticate, (req, res) => {
 app.get('/api/users/search', authenticate, (req, res) => {
     const query = (req.query.q || '').toLowerCase();
     const results = db.users
-        .filter(u => u.email.toLowerCase().includes(query) || u.name.toLowerCase().includes(query))
-        .map(u => ({ email: u.email, name: u.name }));
+        .filter(u => (u.name || '').toLowerCase().includes(query))
+        .map(u => ({ username: u.name }));
     res.json(results);
 });
 
@@ -170,8 +177,7 @@ app.post('/api/messages/send', authenticate, (req, res) => {
 
     const msg = {
         id: crypto.randomUUID(),
-        from: req.user.email,
-        fromName: db.users.find(u => u.email === req.user.email)?.name || req.user.email,
+        from: req.user.username,
         to,
         content,
         type,
@@ -195,8 +201,17 @@ app.post('/api/messages/send', authenticate, (req, res) => {
 });
 
 app.get('/api/messages', authenticate, (req, res) => {
-    const userMsgs = db.messages.filter(m => m.to === req.user.email).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    const userMsgs = db.messages.filter(m => m.to === req.user.username).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     res.json(userMsgs);
+});
+
+// --- SECURITY SETTINGS ---
+app.get('/api/settings', authenticate, (req, res) => res.json(db.settings));
+app.post('/api/settings', authenticate, (req, res) => {
+    if (req.user.email !== 'meqda@gmail.com') return res.status(403).json({ error: "Only the Root Admin can change security settings." });
+    db.settings = { ...db.settings, ...req.body };
+    syncToCloud();
+    res.json({ success: true, settings: db.settings });
 });
 
 const PROTECTION_HTML = `
@@ -239,6 +254,10 @@ app.get('/raw/:name', (req, res) => {
 
     const fileName = (req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua').replace(/\./g, '_dot_');
     const file = db.vault[fileName];
+
+    if (db.settings.globalKillSwitch) {
+        return res.status(503).send("-- SUSHIX: Global Kill-Switch is ACTIVE. Asset temporarily disabled.");
+    }
 
     if (file) {
         res.setHeader('Content-Type', 'text/plain');
@@ -283,15 +302,16 @@ app.get('/api/scripts/:name', authenticate, (req, res) => {
 // --- AUTH SYSTEM: EMAIL & PASSWORD ---
 app.post('/api/auth/register', async (req, res) => {
     const { email, password, name } = req.body;
-    if (!email || !password) return res.status(400).json({ error: "Email and password required." });
+    if (!email || !password || !name) return res.status(400).json({ error: "Email, password and Username required." });
 
     if (db.users.find(u => u.email === email)) return res.status(400).json({ error: "EMAIL ALREADY REGISTERED" });
+    if (db.users.find(u => u.name.toLowerCase() === name.toLowerCase())) return res.status(400).json({ error: "USERNAME ALREADY TAKEN" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = {
         id: crypto.randomUUID(),
         email,
-        name: name || email.split('@')[0],
+        name: name,
         password: hashedPassword,
         type: 'local',
         createdAt: new Date().toISOString()
@@ -300,20 +320,20 @@ app.post('/api/auth/register', async (req, res) => {
     db.users.push(newUser);
     syncToCloud();
 
-    console.log(`[USER REGISTERED]: ${email}`);
+    console.log(`[USER REGISTERED]: ${name} (${email})`);
     res.json({ success: true, message: "Account created successfully." });
 });
 
 app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
-    const user = db.users.find(u => u.email === email);
+    const user = db.users.find(u => u.email === email || u.name === email); // Allow login by email or username
 
     if (!user || user.type === 'google') return res.status(401).json({ error: "INVALID CREDENTIALS" });
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: "INVALID CREDENTIALS" });
 
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id, email: user.email, username: user.name }, JWT_SECRET, { expiresIn: '7d' });
     res.cookie('vander_session', token, { httpOnly: true, secure: true, sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
 
     res.json({ success: true, user: { id: user.id, email: user.email, name: user.name } });
@@ -340,7 +360,7 @@ app.post('/api/auth/google', async (req, res) => {
             console.log(`[USER LOGIN]: ${email}`);
         }
 
-        const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+        const token = jwt.sign({ id: user.id, email: user.email, username: user.name }, JWT_SECRET, { expiresIn: '7d' });
         res.cookie('vander_session', token, { httpOnly: true, secure: true, sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
         res.json({ success: true, user });
     } catch (err) {
