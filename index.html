@@ -551,6 +551,10 @@
                 <div class="nav-label">Overview</div>
                 <div class="nav-item active" onclick="showPanel('dashboard', this)">📊 System Analytics</div>
                 <div class="nav-item" onclick="showPanel('explorer', this)">📁 Script Repository</div>
+                <div class="nav-item" onclick="showPanel('mailbox', this)">✉️ Member Mailbox <span id="mail-count"
+                        class="badge-danger"
+                        style="display:none; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: auto;">0</span>
+                </div>
             </div>
 
             <div class="nav-group" style="margin-top: 32px;">
@@ -722,8 +726,12 @@
 
                     <div style="display: flex; gap: 16px;">
                         <button class="btn" onclick="copyVal('view-loader')">COPY LOADER</button>
-                        <button class="btn btn-danger" onclick="deleteCur()">PERMANENT DELETE</button>
-                        <button class="btn btn-outline" onclick="showPanel('explorer')">BACK</button>
+                        <button id="invite-btn" class="btn" onclick="openComposeModal('', currentFile)"
+                            style="background: var(--vander); color:#000;"><i class="fas fa-share-alt"></i>
+                            INVITE</button>
+                        <button id="delete-btn" class="btn btn-danger" onclick="deleteCur()">PERMANENT DELETE</button>
+                        <button class="btn btn-outline"
+                            onclick="showPanel('explorer', document.querySelector('.nav-item:nth-child(2)'))">BACK</button>
                     </div>
                 </div>
             </div>
@@ -737,7 +745,43 @@
                 <h2>Global Config</h2>
                 <p>Server-side parameters are locked to ELITE-OPTIMAL.</p>
             </div>
+
+            <!-- MAILBOX -->
+            <div id="mailbox" class="panel">
+                <div class="panel-header">
+                    <h2>Member Mailbox</h2>
+                    <p>Direct encrypted communications and script sharing.</p>
+                </div>
+                <div style="display: flex; gap: 16px; margin-bottom: 24px;">
+                    <button class="btn" onclick="openComposeModal()"><i class="fas fa-paper-plane"></i> COMPOSE
+                        MESSAGE</button>
+                    <button class="btn btn-outline" onclick="loadMessages()">REFRESH INBOX</button>
+                </div>
+                <div id="messages-list">
+                    <!-- Messages Injected -->
+                </div>
+            </div>
         </main>
+
+        <div id="compose-modal" class="modal-overlay"
+            style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:20000; align-items:center; justify-content:center;">
+            <div class="card" style="width: 500px; position:relative;">
+                <h2 id="modal-title">New Message</h2>
+                <label>Recipient Email</label>
+                <input type="text" id="msg-to" placeholder="e.g. admin@sushix.hub">
+                <label>Message Content</label>
+                <textarea id="msg-content" style="height:120px;" placeholder="Type your message..."></textarea>
+                <div id="invite-area"
+                    style="display:none; padding:12px; background:rgba(0,242,255,0.05); border:1px dashed var(--vander); border-radius:8px; margin-bottom:16px;">
+                    <p style="margin:0; font-size:12px; color:var(--vander)">📎 Attaching invite to: <b
+                            id="invite-file"></b></p>
+                </div>
+                <div style="display:flex; gap:16px; margin-top:20px;">
+                    <button class="btn" style="flex:1" onclick="sendMessage()">SEND ENCRYPTED</button>
+                    <button class="btn btn-outline" onclick="closeComposeModal()">CANCEL</button>
+                </div>
+            </div>
+        </div>
 
         <div id="toast">Notification text</div>
 
@@ -754,14 +798,99 @@
                 } catch (e) { }
             }
 
+            async function showPanel(id, el) {
+                if (el) {
+                    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                    el.classList.add('active');
+                }
+                document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+                document.getElementById(id).classList.add('active');
+
+                if (id === 'explorer') loadFiles();
+                if (id === 'intel') loadThreats();
+                if (id === 'dashboard') updateStats();
+                if (id === 'mailbox') loadMessages();
+            }
+
+            let pendingInvite = null;
+
+            function openComposeModal(to = '', script = null) {
+                document.getElementById('msg-to').value = to;
+                document.getElementById('msg-content').value = script ? `Allowing you access to my asset: ${script}` : '';
+                pendingInvite = script;
+                document.getElementById('modal-title').innerText = script ? "Invite to Collaborate" : "Compose Message";
+                document.getElementById('invite-area').style.display = script ? 'block' : 'none';
+                if (script) document.getElementById('invite-file').innerText = script;
+                document.getElementById('compose-modal').style.display = 'flex';
+            }
+
+            function closeComposeModal() {
+                document.getElementById('compose-modal').style.display = 'none';
+            }
+
+            async function sendMessage() {
+                const to = document.getElementById('msg-to').value;
+                const content = document.getElementById('msg-content').value;
+                if (!to || !content) return notify("Recipient and content required.");
+
+                try {
+                    const res = await fetch('/api/messages/send', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ to, content, type: pendingInvite ? 'invite' : 'text', scriptName: pendingInvite })
+                    });
+                    if (res.ok) {
+                        notify("Encrypted communication delivered.");
+                        closeComposeModal();
+                        loadMessages();
+                    } else {
+                        const d = await res.json();
+                        notify("Transmission error: " + d.error);
+                    }
+                } catch (e) { notify("Relay failed."); }
+            }
+
+            async function loadMessages() {
+                try {
+                    const res = await fetch('/api/messages');
+                    const data = await res.json();
+                    const list = document.getElementById('messages-list');
+                    list.innerHTML = "";
+
+                    if (data.length === 0) {
+                        list.innerHTML = `<div class="card" style="text-align:center; color:#505570;">Inbox empty. All clear.</div>`;
+                        return;
+                    }
+
+                    data.forEach(m => {
+                        const typeBadge = m.type === 'invite' ? '<span class="badge badge-success" style="background:var(--vander); color:#000;">INVITE</span>' : '<span class="badge" style="background:#252a3d">DIRECT</span>';
+                        list.innerHTML += `
+                            <div class="card" style="margin-bottom:16px; border-left: 4px solid ${m.type === 'invite' ? 'var(--vander)' : 'var(--accent)'}">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                    <span style="font-weight:800; color:var(--vander); font-size:11px;">FROM: ${m.fromName}</span>
+                                    ${typeBadge}
+                                </div>
+                                <p style="margin:0; font-size:14px; line-height:1.6; color:#fff;">${m.content}</p>
+                                <div style="margin-top:12px; font-size:10px; color:#404560; display:flex; justify-content:space-between;">
+                                    <span>RECEIVED: ${new Date(m.timestamp).toLocaleString()}</span>
+                                    ${m.type === 'invite' ? `<a href="#" onclick="showPanel('explorer')" style="color:var(--vander); text-decoration:none;">VIEW SHARED ASSET →</a>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                } catch (e) { }
+            }
+
+            let lastScripts = [];
             async function loadFiles() {
                 try {
                     const res = await fetch('/api/scripts');
                     const data = await res.json();
+                    lastScripts = data.scripts || [];
                     const list = document.getElementById('file-list');
                     list.innerHTML = "";
 
-                    const scripts = data.scripts || [];
+                    const scripts = lastScripts;
 
                     if (scripts.length === 0) {
                         list.innerHTML = `<div style="padding:48px; text-align:center; color:#505570;">No assets found in vault.</div>`;
@@ -769,16 +898,17 @@
                     }
 
                     scripts.forEach(f => {
-                        const name = typeof f === 'string' ? f : f.name;
+                        const name = f.name;
                         const date = f.date ? new Date(f.date).toLocaleDateString() : 'Cloud Async';
                         const size = f.size ? (f.size / 1024).toFixed(1) + " KB" : '0 KB';
+                        const badge = f.isOwner ? '<span class="badge badge-success">VAULTED</span>' : '<span class="badge" style="background:var(--vander); color:#000;">SHARED</span>';
 
                         list.innerHTML += `
                         <div class="item-row" onclick="view('${name}')">
-                            <div class="name-col">${name}</div>
+                            <div class="name-col">${name} ${badge}</div>
                             <div>${date}</div>
                             <div>${size}</div>
-                            <div><span class="badge badge-success">HOSTED</span></div>
+                            <div><span class="badge badge-success">ONLINE</span></div>
                         </div>
                     `;
                     });
@@ -791,10 +921,18 @@
                 currentFile = name;
                 const res = await fetch('/api/scripts/' + name);
                 const data = await res.json();
+                if (!res.ok) return notify(data.error || "Access Denied.");
+
                 document.getElementById('view-title').innerText = name;
-                // Updated to use production domain link
                 document.getElementById('view-loader').value = `loadstring(game:HttpGet("https://sushix-protect-elite.onrender.com/raw/${name}"))()`;
                 document.getElementById('view-content').value = data.content;
+
+                const scriptData = lastScripts.find(s => s.name === name);
+                const canManage = scriptData ? scriptData.isOwner : false;
+
+                document.getElementById('delete-btn').style.display = canManage ? 'block' : 'none';
+                document.getElementById('invite-btn').style.display = canManage ? 'block' : 'none';
+
                 showPanel('viewer');
             }
 
@@ -1061,6 +1199,30 @@
             };
         </script>
     </div>
-</body>
+    <!-- COMPOSE MESSAGE MODAL -->
+    <div id="compose-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>COMPOSE <span>MESSAGE</span></h2>
+                <i class="fas fa-times" onclick="closeComposeModal()"></i>
+            </div>
+            <div class="auth-input-group">
+                <label>Recipient Email</label>
+                <input type="text" id="msg-to" placeholder="user@provider.com">
+            </div>
+            <div class="auth-input-group">
+                <label>Message Content</label>
+                <textarea id="msg-content"
+                    style="width:100%; background:#0d0f17; border:1fr solid var(--border); border-radius:8px; color:#fff; padding:12px; height:100px; outline:none; font-family:inherit;"></textarea>
+            </div>
+            <div id="invite-script-area"
+                style="display:none; background: rgba(0, 242, 255, 0.05); border: 1px dashed var(--vander); border-radius: 8px; padding: 10px; margin-bottom: 15px;">
+                <p style="font-size: 11px; color: var(--vander); margin: 0;"><i class="fas fa-share-alt"></i> ATTACHING
+                    INVITE TO: <span id="invite-script-name"></span></p>
+            </div>
+            <button class="btn" style="width: 100%; justify-content: center;" onclick="sendMessage()">SEND ENCRYPTED
+                MESSAGE</button>
+        </div>
+    </div>
 
 </html>

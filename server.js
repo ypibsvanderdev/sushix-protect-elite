@@ -19,7 +19,8 @@ const db = {
     vault: {},
     users: [],
     registry: { whitelist: [], blacklist: [] },
-    threats: []
+    threats: [],
+    messages: [] // New: DM System
 };
 
 async function syncToCloud() {
@@ -39,6 +40,7 @@ async function loadFromCloud() {
             db.users = res.data.users || [];
             db.registry = res.data.registry || { whitelist: [], blacklist: [] };
             db.threats = res.data.threats || [];
+            db.messages = res.data.messages || [];
             console.log("[CLOUD]: Database loaded successfully.");
         } else {
             console.log("[CLOUD]: Initializing empty database...");
@@ -87,9 +89,15 @@ class SushiXEliteEngine {
     protect(source, name, options = {}) {
         const scriptId = "SX_ELITE_" + this.randomStr(12).toUpperCase();
         const scriptName = name.endsWith('.lua') ? name : name + '.lua';
+        const fileName = scriptName.replace(/\./g, '_dot_');
 
-        // Save to Cloud Vault
-        db.vault[scriptName.replace(/\./g, '_dot_')] = source;
+        // Save to Cloud Vault with Metadata
+        db.vault[fileName] = {
+            source,
+            owner: options.owner || 'system',
+            sharedWith: [], // List of user IDs with access
+            createdAt: new Date().toISOString()
+        };
         syncToCloud();
 
         this.metrics.total_crypts++;
@@ -105,7 +113,7 @@ app.get('/api/threats', authenticate, (req, res) => res.json(db.threats));
 
 app.post('/api/obfuscate', authenticate, (req, res) => {
     const { script, name } = req.body;
-    const data = engine.protect(script, name);
+    const data = engine.protect(script, name, { owner: req.user.email });
     // Simple loadstring that works in every executor
     const fileName = name.endsWith('.lua') ? name : name + '.lua';
     const loader = `loadstring(game:HttpGet("${BASE_URL}/raw/${fileName}"))()`;
@@ -136,11 +144,59 @@ app.post('/api/obfuscate', (req, res) => {
 
 app.delete('/api/scripts/:name', authenticate, (req, res) => {
     const fileName = req.params.name.replace(/\./g, '_dot_');
-    if (db.vault[fileName]) {
+    const file = db.vault[fileName];
+    if (file) {
+        if (file.owner !== req.user.email && req.user.email !== 'meqda@gmail.com') {
+            return res.status(403).json({ error: "Only the owner can delete this script." });
+        }
         delete db.vault[fileName];
         syncToCloud();
         res.json({ success: true });
     } else res.status(404).json({ error: "File not found" });
+});
+
+// --- COLLABORATION & MESSAGING SYSTEM ---
+app.get('/api/users/search', authenticate, (req, res) => {
+    const query = (req.query.q || '').toLowerCase();
+    const results = db.users
+        .filter(u => u.email.toLowerCase().includes(query) || u.name.toLowerCase().includes(query))
+        .map(u => ({ email: u.email, name: u.name }));
+    res.json(results);
+});
+
+app.post('/api/messages/send', authenticate, (req, res) => {
+    const { to, content, type = 'text', scriptName = null } = req.body;
+    if (!to || !content) return res.status(400).json({ error: "Recipient and content required." });
+
+    const msg = {
+        id: crypto.randomUUID(),
+        from: req.user.email,
+        fromName: db.users.find(u => u.email === req.user.email)?.name || req.user.email,
+        to,
+        content,
+        type,
+        scriptName,
+        timestamp: new Date().toISOString(),
+        read: false
+    };
+
+    db.messages.push(msg);
+
+    // If it's an invite, automatically add permission
+    if (type === 'invite' && scriptName) {
+        const fileName = scriptName.replace(/\./g, '_dot_');
+        if (db.vault[fileName] && !db.vault[fileName].sharedWith.includes(to)) {
+            db.vault[fileName].sharedWith.push(to);
+        }
+    }
+
+    syncToCloud();
+    res.json({ success: true });
+});
+
+app.get('/api/messages', authenticate, (req, res) => {
+    const userMsgs = db.messages.filter(m => m.to === req.user.email).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    res.json(userMsgs);
 });
 
 const PROTECTION_HTML = `
@@ -182,29 +238,46 @@ app.get('/raw/:name', (req, res) => {
     }
 
     const fileName = (req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua').replace(/\./g, '_dot_');
-    const source = db.vault[fileName];
+    const file = db.vault[fileName];
 
-    if (source) {
+    if (file) {
         res.setHeader('Content-Type', 'text/plain');
-        res.send(obfuscateLua(source));
+        res.send(obfuscateLua(file.source));
     } else res.status(404).send("-- SUSHIX: Asset not found.");
 });
 
 app.get('/api/scripts', authenticate, (req, res) => {
     if (!validateAccess(req) && !req.headers.referer) return res.status(403).send(PROTECTION_HTML);
     try {
-        const scripts = Object.keys(db.vault).map(key => {
-            return { name: key.replace(/_dot_/g, '.'), size: db.vault[key].length, date: new Date() };
-        });
+        const scripts = Object.keys(db.vault)
+            .filter(key => {
+                const f = db.vault[key];
+                return f.owner === req.user.email || (f.sharedWith && f.sharedWith.includes(req.user.email)) || req.user.email === 'meqda@gmail.com';
+            })
+            .map(key => {
+                const f = db.vault[key];
+                return {
+                    name: key.replace(/_dot_/g, '.'),
+                    size: f.source.length,
+                    date: f.createdAt,
+                    isOwner: f.owner === req.user.email
+                };
+            });
         res.json({ success: true, scripts });
     } catch (e) { res.json({ success: false, scripts: [] }); }
 });
 
 app.get('/api/scripts/:name', authenticate, (req, res) => {
     const fileName = (req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua').replace(/\./g, '_dot_');
-    const source = db.vault[fileName];
-    if (source) res.json({ success: true, content: source });
-    else res.status(404).json({ error: "Script not found" });
+    const file = db.vault[fileName];
+
+    if (file) {
+        // Permission Check
+        if (file.owner !== req.user.email && (!file.sharedWith || !file.sharedWith.includes(req.user.email)) && req.user.email !== 'meqda@gmail.com') {
+            return res.status(403).json({ error: "ACCESS DENIED: You are not invited to this script." });
+        }
+        res.json({ success: true, content: file.source });
+    } else res.status(404).json({ error: "Script not found" });
 });
 
 // --- AUTH SYSTEM: EMAIL & PASSWORD ---
