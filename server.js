@@ -3,6 +3,9 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { OAuth2Client } = require('google-auth-library');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 const PORT = process.env.PORT || 3050;
@@ -11,15 +14,35 @@ const VAULT_PATH = path.join(__dirname, 'vault');
 const LOGS_PATH = path.join(__dirname, 'logs');
 const REGISTRY_PATH = path.join(__dirname, 'registry.json');
 const THREATS_PATH = path.join(__dirname, 'threats.json');
+const USERS_PATH = path.join(__dirname, 'users.json');
+
+const JWT_SECRET = 'VANDER-HUB-ULTRA-SECRET-777';
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+const gClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 if (!fs.existsSync(VAULT_PATH)) fs.mkdirSync(VAULT_PATH);
 if (!fs.existsSync(LOGS_PATH)) fs.mkdirSync(LOGS_PATH);
 if (!fs.existsSync(REGISTRY_PATH)) fs.writeFileSync(REGISTRY_PATH, JSON.stringify({ whitelist: [], blacklist: [] }));
 if (!fs.existsSync(THREATS_PATH)) fs.writeFileSync(THREATS_PATH, JSON.stringify([]));
+if (!fs.existsSync(USERS_PATH)) fs.writeFileSync(USERS_PATH, JSON.stringify([]));
 
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
 app.use(express.static(__dirname));
+
+// --- AUTH MIDDLEWARE ---
+const authenticate = (req, res, next) => {
+    const token = req.cookies.vander_session;
+    if (!token) return res.status(401).json({ error: "UNAUTHORIZED: Access via Google Login required." });
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (err) {
+        res.status(401).json({ error: "SESSION EXPIRED: Please re-login with Google." });
+    }
+};
 
 // --- SUSHIX ELITE ENGINE V8.3 ---
 class SushiXEliteEngine {
@@ -53,12 +76,12 @@ function logThreat(ip, method, ua) {
     engine.updateTotalThreats();
 }
 
-app.get('/api/analytics', (req, res) => res.json({ ...engine.metrics, uptime: process.uptime(), server_status: "MONITORING" }));
-app.get('/api/threats', (req, res) => res.json(JSON.parse(fs.readFileSync(THREATS_PATH))));
+app.get('/api/analytics', authenticate, (req, res) => res.json({ ...engine.metrics, uptime: process.uptime(), server_status: "MONITORING" }));
+app.get('/api/threats', authenticate, (req, res) => res.json(JSON.parse(fs.readFileSync(THREATS_PATH))));
 
 // Whitelist endpoints removed for simplicity
 
-app.post('/api/obfuscate', (req, res) => {
+app.post('/api/obfuscate', authenticate, (req, res) => {
     const { script, name } = req.body;
     const data = engine.protect(script, name);
     // Simple loadstring that works in every executor
@@ -89,7 +112,7 @@ app.post('/api/obfuscate', (req, res) => {
     res.json({ ...data, loader });
 });
 
-app.delete('/api/scripts/:name', (req, res) => {
+app.delete('/api/scripts/:name', authenticate, (req, res) => {
     const p = path.join(VAULT_PATH, req.params.name);
     if (fs.existsSync(p)) { fs.unlinkSync(p); res.json({ success: true }); }
     else res.status(404).json({ error: "File not found" });
@@ -138,7 +161,7 @@ app.get('/raw/:name', (req, res) => {
     } else res.status(404).send("-- SUSHIX: Asset not found.");
 });
 
-app.get('/api/scripts', (req, res) => {
+app.get('/api/scripts', authenticate, (req, res) => {
     if (!validateAccess(req) && !req.headers.referer) return res.status(403).send(PROTECTION_HTML);
     try {
         const files = fs.readdirSync(VAULT_PATH).filter(f => f.endsWith('.lua'));
@@ -151,11 +174,54 @@ app.get('/api/scripts', (req, res) => {
     } catch (e) { res.json({ success: false, scripts: [] }); }
 });
 
-app.get('/api/scripts/:name', (req, res) => {
+app.get('/api/scripts/:name', authenticate, (req, res) => {
     if (!validateAccess(req) && !req.headers.referer) return res.status(403).send(PROTECTION_HTML);
     const p = path.join(VAULT_PATH, req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua');
     if (fs.existsSync(p)) res.json({ success: true, content: fs.readFileSync(p, 'utf8') });
     else res.status(404).json({ error: "Script not found" });
+});
+
+// --- GOOGLE AUTH ENDPOINTS ---
+app.post('/api/auth/google', async (req, res) => {
+    const { credential } = req.body;
+    try {
+        const ticket = await gClient.verifyIdToken({
+            idToken: credential,
+            audience: GOOGLE_CLIENT_ID,
+        });
+        const payload = ticket.getPayload();
+        const { email, name, picture, sub: googleId } = payload;
+
+        // --- SIGN UP / SIGN IN PERSISTENCE ---
+        const users = JSON.parse(fs.readFileSync(USERS_PATH));
+        let user = users.find(u => u.email === email);
+        if (!user) {
+            user = { id: googleId, email, name, picture, createdAt: new Date().toISOString() };
+            users.push(user);
+            fs.writeFileSync(USERS_PATH, JSON.stringify(users, null, 4));
+            console.log(`[USER SIGNUP]: ${email}`);
+        } else {
+            console.log(`[USER LOGIN]: ${email}`);
+        }
+
+        const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+        res.cookie('vander_session', token, { httpOnly: true, secure: true, sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
+        res.json({ success: true, user });
+    } catch (err) {
+        console.error("Google Auth Error:", err);
+        res.status(400).json({ success: false, error: "CREDENTIAL VALIDATION FAILED" });
+    }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+    res.clearCookie('vander_session');
+    res.json({ success: true });
+});
+
+app.get('/api/auth/me', authenticate, (req, res) => {
+    const users = JSON.parse(fs.readFileSync(USERS_PATH));
+    const user = users.find(u => u.id === req.user.id);
+    res.json({ success: true, user });
 });
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
