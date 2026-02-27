@@ -177,8 +177,92 @@
 
         .login-card p {
             color: var(--text-dim);
-            margin-bottom: 32px;
+            margin-bottom: 24px;
             font-size: 14px;
+        }
+
+        .auth-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 24px;
+            background: #0d0f17;
+            padding: 5px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 10px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            border-radius: 8px;
+            color: var(--text-dim);
+            transition: 0.2s;
+        }
+
+        .auth-tab.active {
+            background: var(--surface);
+            color: #fff;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .auth-form {
+            display: none;
+            text-align: left;
+        }
+
+        .auth-form.active {
+            display: block;
+        }
+
+        .auth-input-group {
+            margin-bottom: 16px;
+        }
+
+        .auth-input-group label {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            font-weight: 800;
+            color: #505570;
+            margin-bottom: 6px;
+        }
+
+        .auth-input-group input {
+            width: 100%;
+            background: #0d0f17;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            transition: 0.2s;
+            margin-bottom: 0;
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 24px 0;
+            color: #404560;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        .divider span {
+            padding: 0 15px;
         }
 
         #dashboard-container {
@@ -408,9 +492,49 @@
     <!-- LOGIN OVERLAY -->
     <div id="login-screen">
         <div class="login-card">
-            <img src="logo.png" style="width: 80px; margin-bottom: 24px;">
-            <h1>SUSHIX <span>PROTECT</span></h1>
-            <p>Administrative authentication required to access the elite protection hub.</p>
+            <img src="logo.png" style="width: 60px; margin-bottom: 16px;">
+            <h1>SUSHIX <span>HUB</span></h1>
+            <p>Administrative Gateway</p>
+
+            <div class="auth-tabs">
+                <div class="auth-tab active" onclick="setAuthMode('login')">LOGIN</div>
+                <div class="auth-tab" onclick="setAuthMode('signup')">SIGN UP</div>
+            </div>
+
+            <!-- LOGIN FORM -->
+            <div id="login-form" class="auth-form active">
+                <div class="auth-input-group">
+                    <label>Email Address</label>
+                    <input type="email" id="login-email" placeholder="owner@vander.hub">
+                </div>
+                <div class="auth-input-group">
+                    <label>Password</label>
+                    <input type="password" id="login-pass" placeholder="••••••••">
+                </div>
+                <button class="btn" style="width: 100%; justify-content: center; margin-top: 10px;"
+                    onclick="doLogin()">AUTHENTICATE</button>
+            </div>
+
+            <!-- SIGNUP FORM -->
+            <div id="signup-form" class="auth-form">
+                <div class="auth-input-group">
+                    <label>Display Name</label>
+                    <input type="text" id="reg-name" placeholder="Vander Admin">
+                </div>
+                <div class="auth-input-group">
+                    <label>Email Address</label>
+                    <input type="email" id="reg-email" placeholder="owner@vander.hub">
+                </div>
+                <div class="auth-input-group">
+                    <label>Access Password</label>
+                    <input type="password" id="reg-pass" placeholder="••••••••">
+                </div>
+                <button class="btn" style="width: 100%; justify-content: center; margin-top: 10px;"
+                    onclick="doRegister()">CREATE ACCOUNT</button>
+            </div>
+
+            <div class="divider"><span>OR CONTINUE WITH</span></div>
+
             <div id="google-login-btn"></div>
         </div>
     </div>
@@ -821,6 +945,57 @@
                 c.select();
                 document.execCommand('copy');
                 notify("Gateway Distributor link copied.");
+            }
+
+            function setAuthMode(mode) {
+                document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+
+                if (mode === 'login') {
+                    document.querySelectorAll('.auth-tab')[0].classList.add('active');
+                    document.getElementById('login-form').classList.add('active');
+                } else {
+                    document.querySelectorAll('.auth-tab')[1].classList.add('active');
+                    document.getElementById('signup-form').classList.add('active');
+                }
+            }
+
+            async function doLogin() {
+                const email = document.getElementById('login-email').value;
+                const password = document.getElementById('login-pass').value;
+
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    checkAuth();
+                    notify("Access Granted. Welcome, " + data.user.name);
+                } else {
+                    alert("Login Error: " + data.error);
+                }
+            }
+
+            async function doRegister() {
+                const name = document.getElementById('reg-name').value;
+                const email = document.getElementById('reg-email').value;
+                const password = document.getElementById('reg-pass').value;
+
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, password })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    notify("Account Created! You can now log in.");
+                    setAuthMode('login');
+                    document.getElementById('login-email').value = email;
+                } else {
+                    alert("Registration Error: " + data.error);
+                }
             }
 
             async function checkAuth() {

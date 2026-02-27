@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
+const bcrypt = require('bcrypt');
 
 const app = express();
 const PORT = process.env.PORT || 3050;
@@ -179,6 +180,47 @@ app.get('/api/scripts/:name', authenticate, (req, res) => {
     const p = path.join(VAULT_PATH, req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua');
     if (fs.existsSync(p)) res.json({ success: true, content: fs.readFileSync(p, 'utf8') });
     else res.status(404).json({ error: "Script not found" });
+});
+
+// --- AUTH SYSTEM: EMAIL & PASSWORD ---
+app.post('/api/auth/register', async (req, res) => {
+    const { email, password, name } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "Email and password required." });
+
+    const users = JSON.parse(fs.readFileSync(USERS_PATH));
+    if (users.find(u => u.email === email)) return res.status(400).json({ error: "EMAIL ALREADY REGISTERED" });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = {
+        id: crypto.randomUUID(),
+        email,
+        name: name || email.split('@')[0],
+        password: hashedPassword,
+        type: 'local',
+        createdAt: new Date().toISOString()
+    };
+
+    users.push(newUser);
+    fs.writeFileSync(USERS_PATH, JSON.stringify(users, null, 4));
+
+    console.log(`[USER REGISTERED]: ${email}`);
+    res.json({ success: true, message: "Account created successfully." });
+});
+
+app.post('/api/auth/login', async (req, res) => {
+    const { email, password } = req.body;
+    const users = JSON.parse(fs.readFileSync(USERS_PATH));
+    const user = users.find(u => u.email === email);
+
+    if (!user || user.type === 'google') return res.status(401).json({ error: "INVALID CREDENTIALS" });
+
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) return res.status(401).json({ error: "INVALID CREDENTIALS" });
+
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+    res.cookie('vander_session', token, { httpOnly: true, secure: true, sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
+
+    res.json({ success: true, user: { id: user.id, email: user.email, name: user.name } });
 });
 
 // --- GOOGLE AUTH ENDPOINTS ---
