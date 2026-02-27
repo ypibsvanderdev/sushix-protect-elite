@@ -5,6 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SUSHIX PROTECT | TITAN CORE</title>
+    <link rel="icon" type="image/png" href="logo.png">
+    <link rel="apple-touch-icon" href="logo.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SushiX Protect">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         :root {
@@ -531,10 +536,88 @@
         input:checked+.slider:before {
             transform: translateX(20px);
         }
+
+        /* --- MOBILE OPTIMIZATIONS --- */
+        .mobile-header {
+            display: none;
+            background: var(--sidebar);
+            padding: 15px 20px;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        @media (max-width: 992px) {
+            body {
+                flex-direction: column;
+                overflow-x: hidden;
+            }
+
+            .sidebar {
+                position: fixed;
+                left: -280px;
+                top: 0;
+                bottom: 0;
+                transition: 0.3s ease;
+                z-index: 10000;
+            }
+
+            .sidebar.show {
+                left: 0;
+            }
+
+            .mobile-header {
+                display: flex;
+            }
+
+            .main {
+                padding: 20px;
+            }
+
+            .grid {
+                grid-template-columns: 1fr !important;
+            }
+
+            .login-card {
+                padding: 30px 20px;
+                width: 90%;
+            }
+
+            .sidebar-overlay {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.7);
+                z-index: 9999;
+                backdrop-filter: blur(5px);
+            }
+
+            .sidebar-overlay.show {
+                display: block;
+            }
+
+            #obf-pure .grid {
+                grid-template-columns: 1fr !important;
+            }
+        }
     </style>
 </head>
 
 <body>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <div class="mobile-header">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <img src="logo.png" style="width:30px; border-radius:4px;">
+            <h1 style="font-size:16px; margin:0; color:#fff;">SUSHIX <span style="color:var(--accent);">PROTECT</span>
+            </h1>
+        </div>
+        <i class="fas fa-bars" style="font-size:20px; cursor:pointer;" onclick="toggleSidebar()"></i>
+    </div>
+
     <!-- LOGIN OVERLAY -->
     <div id="login-screen">
         <div class="login-card">
@@ -1371,6 +1454,20 @@
                 await fetch('/api/auth/logout', { method: 'POST' });
                 location.reload();
             }
+
+            function toggleSidebar() {
+                document.querySelector('.sidebar').classList.toggle('show');
+                document.querySelector('.sidebar-overlay').classList.toggle('show');
+            }
+
+            // Enhanced showPanel for mobile
+            const originalShowPanel = showPanel;
+            showPanel = function (id, el) {
+                originalShowPanel(id, el);
+                if (window.innerWidth <= 992) {
+                    toggleSidebar();
+                }
+            };
 
             window.onload = () => {
                 checkAuth();
