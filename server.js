@@ -72,14 +72,36 @@ app.get('/raw/:name', (req, res) => {
 
     // VANDER HUB PRODUCTION PROTECTION MODEL
     const blacklist = ['discord', 'python', 'axios', 'fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl', 'scraper', 'spider', 'bot', 'headless'];
-    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'android', 'iphone', 'ipad', 'cfnetwork', 'robloxproxy', 'mozilla', 'chrome', 'safari', 'edge', 'vander'];
+    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'android', 'iphone', 'ipad', 'cfnetwork', 'robloxproxy', 'vander'];
 
     const isBlacklisted = blacklist.some(k => ua.includes(k));
     const isWhitelisted = whitelist.some(k => ua.includes(k));
 
     // PROTECTION TRIGGER
     if (isBlacklisted || !isWhitelisted) {
-        return res.status(403).send('-- [VANDER-HUB]: UNTRUSTED ENVIRONMENT. ACCESS REVOKED.');
+        return res.status(403).send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Access Denied | SushiX Protector</title>
+                <style>
+                    body { background: #000; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
+                    .container { text-align: center; }
+                    .shield { font-size: 80px; margin-bottom: 20px; display: block; filter: drop-shadow(0 0 20px #4d94ff) drop-shadow(0 0 40px #ff4d00); animation: pulse 2s infinite ease-in-out; }
+                    h1 { font-size: 28px; letter-spacing: 2px; font-weight: 800; margin: 0; text-transform: uppercase; color: #fff; }
+                    p { color: #808080; font-size: 10px; letter-spacing: 1px; font-weight: 600; margin-top: 10px; text-transform: uppercase; }
+                    @keyframes pulse { 0% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.05); opacity: 1; } 100% { transform: scale(1); opacity: 0.8; } }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <span class="shield">🛡️</span>
+                    <h1>SUSHIX PROTECTOR: ACCESS DENIED</h1>
+                    <p>BROWSER INTEGRITY VIOLATION | UNAUTHORIZED SOURCE REQUEST</p>
+                </div>
+            </body>
+            </html>
+        `);
     }
 
     const fileName = req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua';
