@@ -17,7 +17,7 @@ const THREATS_PATH = path.join(__dirname, 'threats.json');
 const USERS_PATH = path.join(__dirname, 'users.json');
 
 const JWT_SECRET = 'VANDER-HUB-ULTRA-SECRET-777';
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '945575151017-o0mh8usjvn9r23lnid2th5g13qg8lpgv.apps.googleusercontent.com';
 const gClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 if (!fs.existsSync(VAULT_PATH)) fs.mkdirSync(VAULT_PATH);
