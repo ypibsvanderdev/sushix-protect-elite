@@ -51,8 +51,7 @@ function logThreat(ip, method, ua) {
     engine.updateTotalThreats();
 }
 
-const PORT = 3050;
-const BASE_URL = `http://localhost:${PORT}`; // CHANGE THIS to your public domain/ngrok link!
+const BASE_URL = `https://sushix-protect-elite.onrender.com`; // CLOUD DEPLOYED LINK
 
 app.get('/api/analytics', (req, res) => res.json({ ...engine.metrics, uptime: process.uptime(), server_status: "MONITORING" }));
 app.get('/api/threats', (req, res) => res.json(JSON.parse(fs.readFileSync(THREATS_PATH))));
@@ -108,7 +107,7 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 app.listen(PORT, () => {
     console.log(`\n========================================`);
-    console.log(` SUSHIX PROTECT ELITE V8.5 ONLINE`);
+    console.log(` SUSHIX PROTECT ELITE V8.5.5 ONLINE`);
     console.log(` LOCAL: http://localhost:${PORT}`);
     console.log(` PUBLIC: ${BASE_URL}`);
     console.log(`========================================\n`);
