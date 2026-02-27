@@ -560,28 +560,36 @@
         }
 
         async function loadFiles() {
-            const res = await fetch('/api/scripts');
-            const files = await res.json();
-            const list = document.getElementById('file-list');
-            list.innerHTML = "";
+            try {
+                const res = await fetch('/api/scripts');
+                const data = await res.json();
+                const list = document.getElementById('file-list');
+                list.innerHTML = "";
 
-            if (files.length === 0) {
-                list.innerHTML = `<div style="padding:48px; text-align:center; color:#505570;">No assets found in vault.</div>`;
-                return;
+                const scripts = data.scripts || [];
+
+                if (scripts.length === 0) {
+                    list.innerHTML = `<div style="padding:48px; text-align:center; color:#505570;">No assets found in vault.</div>`;
+                    return;
+                }
+
+                scripts.forEach(f => {
+                    const name = typeof f === 'string' ? f : f.name;
+                    const date = f.date ? new Date(f.date).toLocaleDateString() : 'Cloud Async';
+                    const size = f.size ? (f.size / 1024).toFixed(1) + " KB" : '0 KB';
+
+                    list.innerHTML += `
+                        <div class="item-row" onclick="view('${name}')">
+                            <div class="name-col">${name}</div>
+                            <div>${date}</div>
+                            <div>${size}</div>
+                            <div><span class="badge badge-success">HOSTED</span></div>
+                        </div>
+                    `;
+                });
+            } catch (e) {
+                console.error("Failed to load files:", e);
             }
-
-            files.forEach(f => {
-                const date = new Date(f.date).toLocaleDateString();
-                const size = (f.size / 1024).toFixed(1) + " KB";
-                list.innerHTML += `
-                    <div class="item-row" onclick="view('${f.name}')">
-                        <div class="name-col">${f.name}</div>
-                        <div>${date}</div>
-                        <div>${size}</div>
-                        <div><span class="badge badge-success">HOSTED</span></div>
-                    </div>
-                `;
-            });
         }
 
         async function view(name) {

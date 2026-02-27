@@ -109,7 +109,15 @@ app.post('/api/obfuscate', (req, res) => {
 app.get('/api/scripts', (req, res) => {
     try {
         const files = fs.readdirSync(VAULT_PATH).filter(f => f.endsWith('.lua'));
-        res.json({ success: true, scripts: files });
+        const detailedFiles = files.map(name => {
+            const stats = fs.statSync(path.join(VAULT_PATH, name));
+            return {
+                name,
+                size: stats.size,
+                date: stats.mtime
+            };
+        });
+        res.json({ success: true, scripts: detailedFiles });
     } catch (e) {
         res.json({ success: false, scripts: [] });
     }
