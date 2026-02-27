@@ -72,7 +72,7 @@ app.get('/raw/:name', (req, res) => {
 
     // VANDER HUB PRODUCTION PROTECTION MODEL
     const blacklist = ['discord', 'python', 'axios', 'fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl', 'scraper', 'spider', 'bot', 'headless'];
-    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'android', 'iphone', 'ipad', 'cfnetwork', 'robloxproxy'];
+    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'android', 'iphone', 'ipad', 'cfnetwork', 'robloxproxy', 'mozilla', 'chrome', 'safari', 'edge', 'vander'];
 
     const isBlacklisted = blacklist.some(k => ua.includes(k));
     const isWhitelisted = whitelist.some(k => ua.includes(k));
