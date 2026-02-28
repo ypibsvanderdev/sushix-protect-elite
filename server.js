@@ -262,59 +262,40 @@ function validateAccess(req) {
     const ua = (req.headers['user-agent'] || '').toLowerCase();
     const h = req.headers;
     const accept = (h['accept'] || '').toLowerCase();
+    const referer = (h['referer'] || '').toLowerCase();
 
-    // 1. Browsers ALWAYS request HTML/XML. Legitimate executors request */* or text/plain.
-    const isBrowserRequest = accept.includes('text/html') || accept.includes('application/xhtml+xml');
+    // --- SNIPER ANTI-BOT ENGINE (Targeting Vander/Hydra) ---
 
-    // 2. Comprehensive Browser Fingerprint Check (Executors DON'T send these)
+    // 1. Detect Luarmor-Spoofing headers used by the bots
+    const isLuarmorSpoof = h['roblox-browser-asset-request'] || referer.includes('luarmor.net');
+
+    // 2. Detect Axios library signature (default Accept header used by the bots)
+    const isAxiosSignature = accept === 'application/json, text/plain, */*';
+
+    // 3. Detect Browser Fingerprints
     const hasBrowserFingerprint =
-        h['sec-ch-ua'] ||
-        h['accept-language'] ||
-        h['sec-fetch-mode'] ||
-        h['sec-fetch-dest'] ||
-        h['sec-fetch-site'] ||
-        h['upgrade-insecure-requests'] ||
-        h['purpose'] === 'prefetch';
+        h['sec-ch-ua'] || h['accept-language'] || h['sec-fetch-mode'] ||
+        h['sec-fetch-dest'] || h['upgrade-insecure-requests'];
 
-    // Whitelist includes mobile identifiers because executors run on mobile devices.
-    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'robloxproxy', 'android', 'iphone', 'ipad'];
-
-    // Blacklist only blocks tools/bots, not common browser words if it's also whitelisted.
-    const blacklist = [
-        'discord', 'python', 'axios', 'fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl',
-        'scraper', 'spider', 'bot', 'headless', 'browser', 'playwright', 'puppeteer', 'selenium',
-        'aiohttp', 'httpx', 'got', 'superagent', 'cheerio', 'zombie', 'phantomjs', 'insomnia'
-    ];
-
+    // 4. Strict Whitelist (Removed generic 'roblox' to prevent simple WinInet spoofs)
+    const whitelist = ['delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'robloxproxy', 'android', 'iphone', 'ipad'];
     const isWhitelisted = whitelist.some(k => ua.includes(k));
-    const isBlacklisted = blacklist.some(k => ua.includes(k));
 
-    // TITAN LOGIC:
-    // 1. If it has a hard browser fingerprint (sec-ch-ua etc), it's a browser. BLOCK.
-    if (hasBrowserFingerprint) {
-        req.lastFailReason = `BROWSER_FINGERPRINT | UA: ${ua.substring(0, 50)}`;
+    // FAIL LOGIC
+    let failReason = null;
+    if (isLuarmorSpoof) failReason = "SPOOF_HEADER_DETECTED";
+    else if (isAxiosSignature) failReason = "AXIOS_LIBRARY_DETECTED";
+    else if (hasBrowserFingerprint) failReason = "BROWSER_FINGERPRINT";
+    else if (ua.includes('mozilla') && !isWhitelisted) failReason = "GENERIC_BROWSER_UA";
+    else if (ua === 'roblox/wininet' && (isLuarmorSpoof || isAxiosSignature)) failReason = "ROBLOX_UA_SPOOF";
+    else if (!isWhitelisted && ua !== 'roblox/wininet') failReason = "NOT_WHITELISTED";
+
+    if (failReason) {
+        req.lastFailReason = `${failReason} | UA: ${ua.substring(0, 40)}`;
         return false;
     }
 
-    // 2. If it's whitelisted (e.g. contains "delta"), PASS immediately (safe for executors).
-    if (isWhitelisted) {
-        return true;
-    }
-
-    // 3. Otherwise, check for browser indicators or blacklist.
-    if (isBrowserRequest) {
-        req.lastFailReason = `BROWSER_ACCEPT | UA: ${ua.substring(0, 50)}`;
-        return false;
-    }
-
-    if (isBlacklisted) {
-        req.lastFailReason = `UA_BLACKLIST | UA: ${ua.substring(0, 50)}`;
-        return false;
-    }
-
-    // 4. Default: BLOCK if not whitelisted.
-    req.lastFailReason = `NOT_WHITELISTED | UA: ${ua.substring(0, 50)}`;
-    return false;
+    return true;
 }
 
 app.get('/raw/:name', (req, res) => {
