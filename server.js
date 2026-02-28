@@ -263,12 +263,10 @@ function validateAccess(req) {
     const h = req.headers;
     const accept = (h['accept'] || '').toLowerCase();
 
-    // --- TITAN ANTI-SPOOF ENGINE (STRICT) ---
-
-    // 1. Browsers ALWAYS request HTML/XML. Executors request */* or text.
+    // 1. Browsers ALWAYS request HTML/XML. Legitimate executors request */* or text/plain.
     const isBrowserRequest = accept.includes('text/html') || accept.includes('application/xhtml+xml');
 
-    // 2. Comprehensive Browser Fingerprint Check
+    // 2. Comprehensive Browser Fingerprint Check (Executors DON'T send these)
     const hasBrowserFingerprint =
         h['sec-ch-ua'] ||
         h['accept-language'] ||
@@ -278,30 +276,45 @@ function validateAccess(req) {
         h['upgrade-insecure-requests'] ||
         h['purpose'] === 'prefetch';
 
+    // Whitelist includes mobile identifiers because executors run on mobile devices.
+    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'robloxproxy', 'android', 'iphone', 'ipad'];
+
+    // Blacklist only blocks tools/bots, not common browser words if it's also whitelisted.
     const blacklist = [
-        'mozilla', 'chrome', 'safari', 'firefox', 'edge', 'opera', 'trident', 'applewebkit', 'presto',
         'discord', 'python', 'axios', 'fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl',
         'scraper', 'spider', 'bot', 'headless', 'browser', 'playwright', 'puppeteer', 'selenium',
         'aiohttp', 'httpx', 'got', 'superagent', 'cheerio', 'zombie', 'phantomjs', 'insomnia'
     ];
 
-    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'robloxproxy'];
-
     const isWhitelisted = whitelist.some(k => ua.includes(k));
     const isBlacklisted = blacklist.some(k => ua.includes(k));
 
-    // LOGGING FOR DEBUGGING (Logged to Threats)
-    const failReason = isBrowserRequest ? "BROWSER_ACCEPT_HEADER" :
-        hasBrowserFingerprint ? "BROWSER_FINGERPRINT" :
-            isBlacklisted ? "UA_BLACKLIST" :
-                !isWhitelisted ? "UA_NOT_WHITELISTED" : null;
-
-    if (failReason) {
-        req.lastFailReason = `${failReason} | UA: ${ua.substring(0, 50)}`;
+    // TITAN LOGIC:
+    // 1. If it has a hard browser fingerprint (sec-ch-ua etc), it's a browser. BLOCK.
+    if (hasBrowserFingerprint) {
+        req.lastFailReason = `BROWSER_FINGERPRINT | UA: ${ua.substring(0, 50)}`;
         return false;
     }
 
-    return true;
+    // 2. If it's whitelisted (e.g. contains "delta"), PASS immediately (safe for executors).
+    if (isWhitelisted) {
+        return true;
+    }
+
+    // 3. Otherwise, check for browser indicators or blacklist.
+    if (isBrowserRequest) {
+        req.lastFailReason = `BROWSER_ACCEPT | UA: ${ua.substring(0, 50)}`;
+        return false;
+    }
+
+    if (isBlacklisted) {
+        req.lastFailReason = `UA_BLACKLIST | UA: ${ua.substring(0, 50)}`;
+        return false;
+    }
+
+    // 4. Default: BLOCK if not whitelisted.
+    req.lastFailReason = `NOT_WHITELISTED | UA: ${ua.substring(0, 50)}`;
+    return false;
 }
 
 app.get('/raw/:name', (req, res) => {
