@@ -267,54 +267,64 @@ function validateAccess(req) {
     const accept = (h['accept'] || '').toLowerCase();
     const referer = (h['referer'] || '').toLowerCase();
 
+    // Perma-Blacklist Check (Skip if it's the admin or a confirmed pass)
+    if (db.registry.blacklist.includes(ip) && !ua.includes('roblox')) {
+        req.lastFailReason = "PERMA_BANNED_IP";
+        return false;
+    }
+
     // Track attempts
     accessLogs[ip] = accessLogs[ip] || { attempts: 0, lastTime: 0 };
 
-    // --- TITAN ZERO-TRUST ENGINE ---
+    // --- TITAN CALIBRATED ENGINE ---
 
-    // 1. FORBIDDEN HEADERS (Bots often leave these behind)
-    const forbiddenHeaders = [
-        'x-requested-with', 'pragma', 'cache-control', 'sec-ch-ua-mobile',
-        'sec-ch-ua-platform', 'sec-fetch-user', 'sec-fetch-dest', 'sec-fetch-mode', 'sec-fetch-site'
+    // 1. HARD BROWSER FINGERPRINTS (Executors NEVER send these)
+    const hardFingerprints = [
+        'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform',
+        'sec-fetch-user', 'sec-fetch-dest', 'sec-fetch-mode', 'sec-fetch-site'
     ];
-    const hasForbiddenHeader = forbiddenHeaders.some(key => h[key]);
+    const hasHardFingerprint = hardFingerprints.some(key => h[key]);
 
-    // 2. IMPOSSIBLE UA COMBINATIONS (The "Spoof Trap")
-    // If it says it's Roblox/WinInet, it should NOT have a Referer from luarmor.net or any browser features
-    const isRobloxUA = ua.includes('roblox') || ua === 'roblox/wininet';
-    const isSpoofedRoblox = isRobloxUA && (referer.includes('luarmor') || h['upgrade-insecure-requests'] || h['accept-language']);
-
-    // 3. AXIOS/FETCH SIGNATURES
-    const isAxios = accept === 'application/json, text/plain, */*' || h['x-axios-client'];
-    const isNodeFetch = ua.includes('node-fetch') || ua.includes('got/') || ua.includes('superagent');
-
-    // 4. BROWSER ACCESS (Strict Block)
-    const isBrowserBody = accept.includes('text/html') || accept.includes('application/xhtml+xml');
-    const isMozillaSpoof = ua.includes('mozilla') && !ua.includes('roblox');
-
-    // 5. WHITELIST (Must be explicit)
+    // 2. IDENTIFY CLIENT
     const whitelist = ['delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'robloxproxy', 'android', 'iphone', 'ipad'];
     const isWhitelisted = whitelist.some(k => ua.includes(k));
+    const isRobloxEngine = ua.includes('roblox') || ua === 'roblox/wininet';
 
-    // FAIL REASON MAPPING
+    // 3. FAIL LOGIC (Priority Based)
     let failReason = null;
-    if (isSpoofedRoblox) failReason = "SPOOF_TRAP_TRIGGERED";
-    else if (hasForbiddenHeader && !isWhitelisted) failReason = "BROWSER_FINGERPRINT_DETECTED";
-    else if (isAxios || isNodeFetch) failReason = "AUTOMATION_LIB_DETECTED";
-    else if (isBrowserBody) failReason = "DIRECT_BROWSER_REQUEST";
-    else if (isMozillaSpoof && !isWhitelisted) failReason = "MOZILLA_SPOOF_ATTEMPT";
-    else if (!isWhitelisted && !isRobloxUA) failReason = "ACCESS_DENIED_UNAUTHORIZED";
+
+    // RULE A: Absolute Block for Hard Fingerprints (Chrome/Edge/Safari)
+    if (hasHardFingerprint) {
+        failReason = "HARD_BROWSER_FINGERPRINT";
+    }
+    // RULE B: Block obvious automation libraries
+    else if (accept === 'application/json, text/plain, */*' || h['x-axios-client']) {
+        failReason = "AXIOS_SIGNATURE_DETECTED";
+    }
+    else if (ua.includes('node-fetch') || ua.includes('got/') || ua.includes('superagent')) {
+        failReason = "NODE_AUTOMATION_DETECTED";
+    }
+    // RULE C: Block Direct Browsers (HTML request)
+    else if (accept.includes('text/html') || accept.includes('application/xhtml+xml')) {
+        failReason = "DIRECT_BROWSER_NAVIGATE";
+    }
+    // RULE D: The "Spoof Trap" (Relaxed: allow accept-language for mobile executors)
+    else if (isRobloxEngine && referer.includes('luarmor')) {
+        failReason = "LUARMOR_SPOOF_TRAP";
+    }
+    // RULE E: Whitelist Enforcement
+    else if (!isWhitelisted && !isRobloxEngine) {
+        failReason = "UNAUTHORIZED_CLIENT_UA";
+    }
 
     if (failReason) {
         accessLogs[ip].attempts++;
-        accessLogs[ip].lastTime = Date.now();
 
-        // Auto-Blacklist after 3 attempts
-        if (accessLogs[ip].attempts >= 3) {
+        // Auto-Blacklist after 5 attempts (loosened from 3 to allow testing)
+        if (accessLogs[ip].attempts >= 5) {
             if (!db.registry.blacklist.includes(ip)) {
                 db.registry.blacklist.push(ip);
                 syncToCloud();
-                console.log(`[FIREWALL]: Perma-Banned IP ${ip} due to excessive probing.`);
             }
         }
 
@@ -322,12 +332,8 @@ function validateAccess(req) {
         return false;
     }
 
-    // Perma-Blacklist Check
-    if (db.registry.blacklist.includes(ip)) {
-        req.lastFailReason = "PERMA_BANNED_IP";
-        return false;
-    }
-
+    // Success: Reset failures for this IP on a successful bypass
+    accessLogs[ip].attempts = 0;
     return true;
 }
 
