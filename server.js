@@ -260,8 +260,13 @@ const PROTECTION_HTML = `
 
 function validateAccess(req) {
     const ua = (req.headers['user-agent'] || '').toLowerCase();
-    const blacklist = ['discord', 'python', 'axios', 'fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl', 'scraper', 'spider', 'bot', 'headless', 'browser', 'playwright', 'puppeteer', 'selenium', 'aiohttp', 'httpx', 'got', 'superagent', 'cheerio', 'zombie', 'phantomjs'];
-    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'android', 'iphone', 'ipad', 'cfnetwork', 'robloxproxy', 'vander'];
+    const blacklist = [
+        'mozilla', 'chrome', 'safari', 'firefox', 'edge', 'opera', 'trident', 'applewebkit',
+        'discord', 'python', 'axios', 'fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl',
+        'scraper', 'spider', 'bot', 'headless', 'browser', 'playwright', 'puppeteer', 'selenium',
+        'aiohttp', 'httpx', 'got', 'superagent', 'cheerio', 'zombie', 'phantomjs'
+    ];
+    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'cfnetwork', 'robloxproxy', 'vander'];
     return !blacklist.some(k => ua.includes(k)) && whitelist.some(k => ua.includes(k));
 }
 
