@@ -260,14 +260,33 @@ const PROTECTION_HTML = `
 
 function validateAccess(req) {
     const ua = (req.headers['user-agent'] || '').toLowerCase();
+    const h = req.headers;
+
+    // --- ANTI-SPOOF ENGINE ---
+    // Legitimate Roblox/Executor requests do NOT send browser-specific headers.
+    // If these are present, it's a script/bot trying to spoof an executor.
+    const hasBrowserFingerprint = h['sec-ch-ua'] || h['accept-language'] || h['sec-fetch-mode'] === 'navigate';
+
     const blacklist = [
         'mozilla', 'chrome', 'safari', 'firefox', 'edge', 'opera', 'trident', 'applewebkit',
         'discord', 'python', 'axios', 'fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl',
         'scraper', 'spider', 'bot', 'headless', 'browser', 'playwright', 'puppeteer', 'selenium',
         'aiohttp', 'httpx', 'got', 'superagent', 'cheerio', 'zombie', 'phantomjs'
     ];
-    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'cfnetwork', 'robloxproxy', 'vander'];
-    return !blacklist.some(k => ua.includes(k)) && whitelist.some(k => ua.includes(k));
+
+    // Removed 'vander' from whitelist
+    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'cfnetwork', 'robloxproxy'];
+
+    const isWhitelisted = whitelist.some(k => ua.includes(k));
+    const isBlacklisted = blacklist.some(k => ua.includes(k));
+
+    // FAIL if: Blacklisted, NOT Whitelisted, OR has Browser Fingerprint (SPOOF)
+    if (hasBrowserFingerprint) {
+        console.log(`[FIREWALL]: Spoof Detected (Browser Fingerprint) from ${req.ip}`);
+        return false;
+    }
+
+    return !isBlacklisted && isWhitelisted;
 }
 
 app.get('/raw/:name', (req, res) => {
