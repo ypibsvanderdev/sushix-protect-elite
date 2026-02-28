@@ -261,38 +261,53 @@ const PROTECTION_HTML = `
 function validateAccess(req) {
     const ua = (req.headers['user-agent'] || '').toLowerCase();
     const h = req.headers;
+    const accept = (h['accept'] || '').toLowerCase();
 
-    // --- ANTI-SPOOF ENGINE ---
-    // Legitimate Roblox/Executor requests do NOT send browser-specific headers.
-    // If these are present, it's a script/bot trying to spoof an executor.
-    const hasBrowserFingerprint = h['sec-ch-ua'] || h['accept-language'] || h['sec-fetch-mode'] === 'navigate';
+    // --- TITAN ANTI-SPOOF ENGINE (STRICT) ---
+
+    // 1. Browsers ALWAYS request HTML/XML. Executors request */* or text.
+    const isBrowserRequest = accept.includes('text/html') || accept.includes('application/xhtml+xml');
+
+    // 2. Comprehensive Browser Fingerprint Check
+    const hasBrowserFingerprint =
+        h['sec-ch-ua'] ||
+        h['accept-language'] ||
+        h['sec-fetch-mode'] ||
+        h['sec-fetch-dest'] ||
+        h['sec-fetch-site'] ||
+        h['upgrade-insecure-requests'] ||
+        h['purpose'] === 'prefetch';
 
     const blacklist = [
-        'mozilla', 'chrome', 'safari', 'firefox', 'edge', 'opera', 'trident', 'applewebkit',
+        'mozilla', 'chrome', 'safari', 'firefox', 'edge', 'opera', 'trident', 'applewebkit', 'presto',
         'discord', 'python', 'axios', 'fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl',
         'scraper', 'spider', 'bot', 'headless', 'browser', 'playwright', 'puppeteer', 'selenium',
-        'aiohttp', 'httpx', 'got', 'superagent', 'cheerio', 'zombie', 'phantomjs'
+        'aiohttp', 'httpx', 'got', 'superagent', 'cheerio', 'zombie', 'phantomjs', 'insomnia'
     ];
 
-    // Removed 'vander' from whitelist
-    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'cfnetwork', 'robloxproxy'];
+    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'robloxproxy'];
 
     const isWhitelisted = whitelist.some(k => ua.includes(k));
     const isBlacklisted = blacklist.some(k => ua.includes(k));
 
-    // FAIL if: Blacklisted, NOT Whitelisted, OR has Browser Fingerprint (SPOOF)
-    if (hasBrowserFingerprint) {
-        console.log(`[FIREWALL]: Spoof Detected (Browser Fingerprint) from ${req.ip}`);
+    // LOGGING FOR DEBUGGING (Logged to Threats)
+    const failReason = isBrowserRequest ? "BROWSER_ACCEPT_HEADER" :
+        hasBrowserFingerprint ? "BROWSER_FINGERPRINT" :
+            isBlacklisted ? "UA_BLACKLIST" :
+                !isWhitelisted ? "UA_NOT_WHITELISTED" : null;
+
+    if (failReason) {
+        req.lastFailReason = `${failReason} | UA: ${ua.substring(0, 50)}`;
         return false;
     }
 
-    return !isBlacklisted && isWhitelisted;
+    return true;
 }
 
 app.get('/raw/:name', (req, res) => {
     if (!validateAccess(req)) {
-        const method = db.settings.antiDump ? "BOT_BAIT_700KB" : "ILLEGAL_BROWSER_FETCH";
-        db.threats.unshift({ ip: req.ip, method: method, time: new Date().toISOString() });
+        const method = db.settings.antiDump ? "BOT_BAIT_700KB" : (req.lastFailReason || "ILLEGAL_BROWSER_FETCH");
+        db.threats.unshift({ ip: req.ip, method: method, time: new Date().toISOString(), userAgent: req.headers['user-agent'] });
         syncToCloud();
         engine.updateTotalThreats();
 
