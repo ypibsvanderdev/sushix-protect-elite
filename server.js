@@ -258,40 +258,73 @@ const PROTECTION_HTML = `
 </body>
 </html>`;
 
+const accessLogs = {}; // IP Ratelimiting cache
+
 function validateAccess(req) {
     const ua = (req.headers['user-agent'] || '').toLowerCase();
     const h = req.headers;
+    const ip = req.ip;
     const accept = (h['accept'] || '').toLowerCase();
     const referer = (h['referer'] || '').toLowerCase();
 
-    // --- SNIPER ANTI-BOT ENGINE (Targeting Vander/Hydra) ---
+    // Track attempts
+    accessLogs[ip] = accessLogs[ip] || { attempts: 0, lastTime: 0 };
 
-    // 1. Detect Luarmor-Spoofing headers used by the bots
-    const isLuarmorSpoof = h['roblox-browser-asset-request'] || referer.includes('luarmor.net');
+    // --- TITAN ZERO-TRUST ENGINE ---
 
-    // 2. Detect Axios library signature (default Accept header used by the bots)
-    const isAxiosSignature = accept === 'application/json, text/plain, */*';
+    // 1. FORBIDDEN HEADERS (Bots often leave these behind)
+    const forbiddenHeaders = [
+        'x-requested-with', 'pragma', 'cache-control', 'sec-ch-ua-mobile',
+        'sec-ch-ua-platform', 'sec-fetch-user', 'sec-fetch-dest', 'sec-fetch-mode', 'sec-fetch-site'
+    ];
+    const hasForbiddenHeader = forbiddenHeaders.some(key => h[key]);
 
-    // 3. Detect Browser Fingerprints
-    const hasBrowserFingerprint =
-        h['sec-ch-ua'] || h['accept-language'] || h['sec-fetch-mode'] ||
-        h['sec-fetch-dest'] || h['upgrade-insecure-requests'];
+    // 2. IMPOSSIBLE UA COMBINATIONS (The "Spoof Trap")
+    // If it says it's Roblox/WinInet, it should NOT have a Referer from luarmor.net or any browser features
+    const isRobloxUA = ua.includes('roblox') || ua === 'roblox/wininet';
+    const isSpoofedRoblox = isRobloxUA && (referer.includes('luarmor') || h['upgrade-insecure-requests'] || h['accept-language']);
 
-    // 4. Strict Whitelist (Removed generic 'roblox' to prevent simple WinInet spoofs)
+    // 3. AXIOS/FETCH SIGNATURES
+    const isAxios = accept === 'application/json, text/plain, */*' || h['x-axios-client'];
+    const isNodeFetch = ua.includes('node-fetch') || ua.includes('got/') || ua.includes('superagent');
+
+    // 4. BROWSER ACCESS (Strict Block)
+    const isBrowserBody = accept.includes('text/html') || accept.includes('application/xhtml+xml');
+    const isMozillaSpoof = ua.includes('mozilla') && !ua.includes('roblox');
+
+    // 5. WHITELIST (Must be explicit)
     const whitelist = ['delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'robloxproxy', 'android', 'iphone', 'ipad'];
     const isWhitelisted = whitelist.some(k => ua.includes(k));
 
-    // FAIL LOGIC
+    // FAIL REASON MAPPING
     let failReason = null;
-    if (isLuarmorSpoof) failReason = "SPOOF_HEADER_DETECTED";
-    else if (isAxiosSignature) failReason = "AXIOS_LIBRARY_DETECTED";
-    else if (hasBrowserFingerprint) failReason = "BROWSER_FINGERPRINT";
-    else if (ua.includes('mozilla') && !isWhitelisted) failReason = "GENERIC_BROWSER_UA";
-    else if (ua === 'roblox/wininet' && (isLuarmorSpoof || isAxiosSignature)) failReason = "ROBLOX_UA_SPOOF";
-    else if (!isWhitelisted && ua !== 'roblox/wininet') failReason = "NOT_WHITELISTED";
+    if (isSpoofedRoblox) failReason = "SPOOF_TRAP_TRIGGERED";
+    else if (hasForbiddenHeader && !isWhitelisted) failReason = "BROWSER_FINGERPRINT_DETECTED";
+    else if (isAxios || isNodeFetch) failReason = "AUTOMATION_LIB_DETECTED";
+    else if (isBrowserBody) failReason = "DIRECT_BROWSER_REQUEST";
+    else if (isMozillaSpoof && !isWhitelisted) failReason = "MOZILLA_SPOOF_ATTEMPT";
+    else if (!isWhitelisted && !isRobloxUA) failReason = "ACCESS_DENIED_UNAUTHORIZED";
 
     if (failReason) {
-        req.lastFailReason = `${failReason} | UA: ${ua.substring(0, 40)}`;
+        accessLogs[ip].attempts++;
+        accessLogs[ip].lastTime = Date.now();
+
+        // Auto-Blacklist after 3 attempts
+        if (accessLogs[ip].attempts >= 3) {
+            if (!db.registry.blacklist.includes(ip)) {
+                db.registry.blacklist.push(ip);
+                syncToCloud();
+                console.log(`[FIREWALL]: Perma-Banned IP ${ip} due to excessive probing.`);
+            }
+        }
+
+        req.lastFailReason = `${failReason} (Attempt ${accessLogs[ip].attempts})`;
+        return false;
+    }
+
+    // Perma-Blacklist Check
+    if (db.registry.blacklist.includes(ip)) {
+        req.lastFailReason = "PERMA_BANNED_IP";
         return false;
     }
 
