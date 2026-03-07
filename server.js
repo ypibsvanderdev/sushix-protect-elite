@@ -123,9 +123,9 @@ app.post('/api/obfuscate', authenticate, (req, res) => {
     const { script, name } = req.body;
     const data = engine.protect(script, name, { owner: req.user.email });
     const fileName = name.endsWith('.lua') ? name : name + '.lua';
-    // New Secure Tunnel Route
-    const loader = `loadstring(game:HttpGet("${BASE_URL}/v1/tunnel/serve/${fileName}"))()`;
-    res.json({ ...data, loader });
+    // Updated to match the user's desired /raw/ format
+    const loaderCode = `loadstring(game:HttpGet("${BASE_URL}/raw/${fileName}"))()`;
+    res.json({ ...data, loader: loaderCode });
 });
 
 app.post('/api/obfuscate/pure', authenticate, (req, res) => {
@@ -333,7 +333,7 @@ function validateAccess(req) {
     return true;
 }
 
-app.get('/v1/tunnel/serve/:name', (req, res) => {
+app.get('/raw/:name', (req, res) => {
     if (!validateAccess(req)) {
         const method = db.settings.antiDump ? "BOT_BAIT_BLOCKCHAIN_700KB" : (req.lastFailReason || "ILLEGAL_BROWSER_FETCH");
         db.threats.unshift({ ip: req.ip, method: method, time: new Date().toISOString(), userAgent: req.headers['user-agent'] });
