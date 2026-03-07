@@ -68,7 +68,7 @@ const gClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
-app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // --- AUTH MIDDLEWARE ---
 const authenticate = (req, res, next) => {
@@ -98,11 +98,12 @@ class SushiXEliteEngine {
         const scriptName = name.endsWith('.lua') ? name : name + '.lua';
         const fileName = scriptName.replace(/\./g, '_dot_');
 
-        // Save to Cloud Vault with Metadata
+        // Save ONLY Obfuscated Code to Cloud Vault
+        const protectedSource = obfuscateLua(source);
         db.vault[fileName] = {
-            source,
+            source: protectedSource, // NO RAW CODE ALLOWED IN DATABASE
             owner: options.owner || 'system',
-            sharedWith: [], // List of user IDs with access
+            sharedWith: [],
             createdAt: new Date().toISOString()
         };
         syncToCloud();
@@ -121,9 +122,9 @@ app.get('/api/threats', authenticate, (req, res) => res.json(db.threats));
 app.post('/api/obfuscate', authenticate, (req, res) => {
     const { script, name } = req.body;
     const data = engine.protect(script, name, { owner: req.user.email });
-    // Simple loadstring that works in every executor
     const fileName = name.endsWith('.lua') ? name : name + '.lua';
-    const loader = `loadstring(game:HttpGet("${BASE_URL}/raw/${fileName}"))()`;
+    // New Secure Tunnel Route
+    const loader = `loadstring(game:HttpGet("${BASE_URL}/v1/tunnel/serve/${fileName}"))()`;
     res.json({ ...data, loader });
 });
 
@@ -162,13 +163,8 @@ function obfuscateLua(source) {
     return lua;
 }
 
-app.post('/api/obfuscate', (req, res) => {
-    const { script, name } = req.body;
-    const data = engine.protect(script, name);
-    const fileName = name.endsWith('.lua') ? name : name + '.lua';
-    const loader = `loadstring(game:HttpGet("${BASE_URL}/raw/${fileName}"))()`;
-    res.json({ ...data, loader });
-});
+// Obsolete route removed for security
+// loader points to /v1/tunnel/serve/ now
 
 app.delete('/api/scripts/:name', authenticate, (req, res) => {
     const fileName = req.params.name.replace(/\./g, '_dot_');
@@ -337,55 +333,27 @@ function validateAccess(req) {
     return true;
 }
 
-app.get('/raw/:name', (req, res) => {
+app.get('/v1/tunnel/serve/:name', (req, res) => {
     if (!validateAccess(req)) {
-        const method = db.settings.antiDump ? "BOT_BAIT_700KB" : (req.lastFailReason || "ILLEGAL_BROWSER_FETCH");
+        const method = db.settings.antiDump ? "BOT_BAIT_BLOCKCHAIN_700KB" : (req.lastFailReason || "ILLEGAL_BROWSER_FETCH");
         db.threats.unshift({ ip: req.ip, method: method, time: new Date().toISOString(), userAgent: req.headers['user-agent'] });
         syncToCloud();
-        engine.updateTotalThreats();
 
         if (db.settings.antiDump) {
-            // 700KB Bot Bait (approx 350KB hex)
-            const junkHex = crypto.randomBytes(350 * 1024).toString('hex');
-            const signature = crypto.randomBytes(64).toString('hex');
-            const garbage = `--[[
-    ☣️ SUSHIX PROTECT ELITE v10.0 ACTIVATED ☣️
-    SHIELD: ANTI-DUMP // ANTI-BOT // LAYER: TITAN-ULTRA
-    INTEGRITY: ${crypto.randomBytes(24).toString('hex')}
-    SIGNATURE: ${signature}
-    STATUS: REDIRECTED_BY_FIREWALL_LOADER_V8
-    @NOTICE: Dumper detected. Serving corrupt payload.
-]]
-local _S = "${junkHex}"
-local _H = "${signature.substring(0, 32)}"
-local _V = function(s) 
-    local r = "" 
-    for i=1,#s,2 do 
-        r = r .. string.char(tonumber(s:sub(i,i+1), 16)) 
-    end 
-    return r 
-end
-if _H ~= "${signature.substring(0, 32)}" then return end
-return loadstring(_V(_S))();`;
-
-            console.log(`[FIREWALL]: Serving 700KB Bait to bot at ${req.ip}`);
+            const junkHex = crypto.randomBytes(400 * 1024).toString('hex');
+            const garbage = `--[[ SUSHI SECURITY: DUMP DETECTED ]]\nlocal _ = "${junkHex}"\nwhile true do end`;
             return res.status(200).set('Content-Type', 'text/plain').send(garbage);
         }
-
         return res.status(403).send(PROTECTION_HTML);
     }
 
     const fileName = (req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua').replace(/\./g, '_dot_');
     const file = db.vault[fileName];
 
-    if (db.settings.globalKillSwitch) {
-        return res.status(503).send("-- SUSHIX: Global Kill-Switch is ACTIVE. Asset temporarily disabled.");
-    }
-
     if (file) {
         res.setHeader('Content-Type', 'text/plain');
-        res.send(obfuscateLua(file.source));
-    } else res.status(404).send("-- SUSHIX: Asset not found.");
+        res.send(file.source); // Source is ALREADY obfuscated in protect()
+    } else res.status(404).send("-- SUSHIX: Tunnel target not found.");
 });
 
 app.get('/api/scripts', authenticate, (req, res) => {
@@ -412,12 +380,11 @@ app.get('/api/scripts', authenticate, (req, res) => {
 app.get('/api/scripts/:name', authenticate, (req, res) => {
     const fileName = (req.params.name.endsWith('.lua') ? req.params.name : req.params.name + '.lua').replace(/\./g, '_dot_');
     const file = db.vault[fileName];
-
     if (file) {
-        // Permission Check
         if (file.owner !== req.user.email && (!file.sharedWith || !file.sharedWith.includes(req.user.email)) && req.user.email !== 'meqda@gmail.com') {
-            return res.status(403).json({ error: "ACCESS DENIED: You are not invited to this script." });
+            return res.status(403).json({ error: "ACCESS DENIED: Insufficient permissions." });
         }
+        // ONLY return obfuscated code even in the UI
         res.json({ success: true, content: file.source });
     } else res.status(404).json({ error: "Script not found" });
 });
@@ -502,7 +469,7 @@ app.get('/api/auth/me', authenticate, (req, res) => {
     res.json({ success: true, user });
 });
 
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 app.listen(PORT, () => {
     console.log(`\n========================================`);
