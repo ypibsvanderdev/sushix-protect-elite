@@ -123,8 +123,8 @@ app.post('/api/obfuscate', authenticate, (req, res) => {
     const { script, name } = req.body;
     const data = engine.protect(script, name, { owner: req.user.email });
     const fileName = name.endsWith('.lua') ? name : name + '.lua';
-    // Secure Tunnel Route: No /raw, no /source
-    const loaderCode = `loadstring(game:HttpGet("${BASE_URL}/v1/sx/secure-tunnel/${fileName}"))()`;
+    // Back to Classic Route
+    const loaderCode = `loadstring(game:HttpGet("${BASE_URL}/raw/${fileName}"))()`;
     res.json({ ...data, loader: loaderCode });
 });
 
@@ -333,7 +333,7 @@ function validateAccess(req) {
     return true;
 }
 
-app.get('/v1/sx/secure-tunnel/:name', (req, res) => {
+app.get('/raw/:name', (req, res) => {
     if (!validateAccess(req)) {
         const method = db.settings.antiDump ? "BOT_BAIT_BLOCKCHAIN_700KB" : (req.lastFailReason || "ILLEGAL_BROWSER_FETCH");
         db.threats.unshift({ ip: req.ip, method: method, time: new Date().toISOString(), userAgent: req.headers['user-agent'] });
@@ -352,8 +352,8 @@ app.get('/v1/sx/secure-tunnel/:name', (req, res) => {
 
     if (file) {
         res.setHeader('Content-Type', 'text/plain');
-        res.send(file.source); // Source is ALREADY obfuscated in protect()
-    } else res.status(404).send("-- SUSHIX: Tunnel target not found.");
+        res.send(file.source);
+    } else res.status(404).send("-- SUSHIX: Raw target not found.");
 });
 
 app.get('/api/scripts', authenticate, (req, res) => {
